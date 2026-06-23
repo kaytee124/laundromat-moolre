@@ -1,0 +1,20 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "scenarios": [
+    { "id": "R01", "name": "Lost update on order", "module": "order", "concurrency": 20 },
+    { "id": "R02", "name": "Concurrent discount updates", "module": "order", "concurrency": 10 },
+    { "id": "R03", "name": "Double payment initialize", "module": "payment", "concurrency": 10 },
+    { "id": "R04", "name": "Payment callback replay", "module": "payment", "concurrency": 5 },
+    { "id": "R05", "name": "Duplicate customer register", "module": "customer", "concurrency": 10 },
+    { "id": "R06", "name": "Parallel token refresh", "module": "auth", "concurrency": 20 },
+    { "id": "R07", "name": "Logout vs refresh race", "module": "auth", "concurrency": 20 },
+    { "id": "R08", "name": "Concurrent order creation", "module": "customer", "concurrency": 10 },
+    { "id": "R09", "name": "Assignee race", "module": "order", "concurrency": 10 },
+    { "id": "R10", "name": "Status history integrity", "module": "order", "concurrency": 1 },
+    { "id": "R11", "name": "Concurrent login", "module": "auth", "concurrency": 50 },
+    { "id": "R12", "name": "Read during write", "module": "order", "concurrency": 20 },
+    { "id": "R13", "name": "Pool exhaustion under writes", "module": "order", "concurrency": 100 },
+    { "id": "R14", "name": "Payment init failure orphan check", "module": "payment", "concurrency": 5 },
+    { "id": "R15", "name": "Order completion and payment race", "module": "order", "concurrency": 10 }
+  ]
+}

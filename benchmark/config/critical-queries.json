@@ -1,0 +1,116 @@
+{
+  "queries": [
+    {
+      "id": "Q01",
+      "name": "orderService.listOrders (staff, no filter)",
+      "source": "services/orderService.js",
+      "description": "Paginated staff order list (default page_size 20)",
+      "sql": "SELECT o.* FROM orders o ORDER BY o.created_at DESC LIMIT 20"
+    },
+    {
+      "id": "Q02",
+      "name": "orderService.listOrders (client filter)",
+      "source": "services/orderService.js",
+      "description": "Orders filtered by customer_id",
+      "sql": "SELECT o.* FROM orders o WHERE o.customer_id = ? ORDER BY o.created_at DESC",
+      "params": ["{{customerId}}"]
+    },
+    {
+      "id": "Q03",
+      "name": "orderService.getById",
+      "source": "services/orderService.js",
+      "description": "Single order by primary key",
+      "sql": "SELECT o.* FROM orders o WHERE o.id = ?",
+      "params": ["{{orderId}}"]
+    },
+    {
+      "id": "Q04",
+      "name": "dashboardService.getSuperadminMetrics - total orders count",
+      "source": "services/dashboardService.js",
+      "description": "Full table count on orders",
+      "sql": "SELECT COUNT(*) AS cnt FROM orders"
+    },
+    {
+      "id": "Q05",
+      "name": "dashboardService.getSuperadminMetrics - unpaid orders",
+      "source": "services/dashboardService.js",
+      "description": "SQL aggregate for total outstanding",
+      "sql": "SELECT COALESCE(SUM(total_amount - amount_paid), 0) AS total_outstanding FROM orders WHERE payment_status != 'paid'"
+    },
+    {
+      "id": "Q06",
+      "name": "dashboardService.getRevenueReport",
+      "source": "services/dashboardService.js",
+      "description": "Payments in date range (index-friendly WHERE)",
+      "sql": "SELECT * FROM payments WHERE status = 'success' AND created_at >= ? AND created_at < ?",
+      "params": ["2025-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"]
+    },
+    {
+      "id": "Q07",
+      "name": "userService.listUsers (clients paginated)",
+      "source": "services/userService.js",
+      "description": "Paginated client list with customer join",
+      "sql": "SELECT u.* FROM users u INNER JOIN customers c ON c.user_id = u.id WHERE u.role = 'client' ORDER BY u.id ASC LIMIT 20 OFFSET 0"
+    },
+    {
+      "id": "Q08",
+      "name": "userService.listUsers with search",
+      "source": "services/userService.js",
+      "description": "LIKE search on username, email, names",
+      "sql": "SELECT * FROM users WHERE role = 'client' AND (username LIKE '%test%' OR email LIKE '%test%' OR first_name LIKE '%test%' OR last_name LIKE '%test%') ORDER BY id ASC LIMIT 20 OFFSET 0"
+    },
+    {
+      "id": "Q09",
+      "name": "auth login lookup",
+      "source": "services/authService.js",
+      "description": "User lookup by username",
+      "sql": "SELECT * FROM users WHERE username = ?",
+      "params": ["bench_admin"]
+    },
+    {
+      "id": "Q10",
+      "name": "orderService.updateCustomerStats",
+      "source": "services/orderService.js",
+      "description": "Aggregate stats per customer",
+      "sql": "SELECT COUNT(id) AS total_orders, SUM(total_amount) AS total_spent, MAX(created_at) AS last_order_date FROM orders WHERE customer_id = ?",
+      "params": ["{{customerId}}"]
+    },
+    {
+      "id": "Q11",
+      "name": "dashboardService employee metrics - assigned count",
+      "source": "services/dashboardService.js",
+      "description": "Orders assigned to employee",
+      "sql": "SELECT COUNT(*) FROM orders WHERE assigned_to = ?",
+      "params": ["{{employeeUserId}}"]
+    },
+    {
+      "id": "Q12",
+      "name": "dashboardService client metrics - customer orders",
+      "source": "services/dashboardService.js",
+      "description": "Order count for client customer",
+      "sql": "SELECT COUNT(*) FROM orders WHERE customer_id = ?",
+      "params": ["{{customerId}}"]
+    },
+    {
+      "id": "Q13",
+      "name": "dashboardService today orders range filter",
+      "source": "services/dashboardService.js",
+      "description": "Today filter uses created_at range (index-friendly)",
+      "sql": "SELECT COUNT(*) FROM orders WHERE created_at >= CURDATE() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
+    },
+    {
+      "id": "Q14",
+      "name": "serviceCatalogService.list",
+      "source": "services/serviceCatalogService.js",
+      "description": "Active services list",
+      "sql": "SELECT * FROM services WHERE is_active = 1 ORDER BY name ASC"
+    },
+    {
+      "id": "Q15",
+      "name": "orders filter by status",
+      "source": "services/orderService.js",
+      "description": "Staff list with status filter",
+      "sql": "SELECT * FROM orders WHERE order_status = 'pending' ORDER BY created_at DESC"
+    }
+  ]
+}

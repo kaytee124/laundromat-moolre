@@ -1,0 +1,13 @@
+{
+  "tier": "full",
+  "users": 100000,
+  "customers": 95000,
+  "services": 50,
+  "orders": 5000000,
+  "orderItemsPerOrder": 2.5,
+  "paymentsRatio": 0.8,
+  "statusHistoryPerOrder": 3,
+  "refreshTokens": 500000,
+  "batchSize": 5000,
+  "rngSeed": 42
+}

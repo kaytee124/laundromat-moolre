@@ -1,0 +1,35 @@
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const morgan = require('morgan');
+const apiRoutes = require('./routes');
+const { errorHandler } = require('./middleware/errorHandler');
+const { tokenRefreshMiddleware } = require('./middleware/auth');
+const { mountSwagger, isSwaggerEnabled } = require('./config/swagger');
+
+const app = express();
+
+app.use(cors({ origin: true, credentials: true }));
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'benchmark') {
+  app.use(morgan('dev'));
+}
+app.use(cookieParser());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(tokenRefreshMiddleware);
+
+if (isSwaggerEnabled()) {
+  mountSwagger(app);
+}
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.use('/api', apiRoutes);
+
+app.use(errorHandler);
+
+module.exports = app;

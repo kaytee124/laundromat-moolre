@@ -1,0 +1,6 @@
+node_modules/
+.env
+coverage/
+*.log
+tests/logs/*.log
+benchmark/results/
