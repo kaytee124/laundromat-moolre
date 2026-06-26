@@ -7,9 +7,10 @@ Laundry management REST API (Node.js + Express + Sequelize + MySQL).
 ```bash
 npm install
 copy .env.example .env   # configure MySQL, JWT, Paystack
-npm run db:migrate
-npm start
+npm start                # applies pending migrations automatically
 ```
+
+`npm run db:migrate` is still available for CI or one-off runs. For Jest, use `npm run db:migrate:test` (test DB is separate and not migrated via `server.js`).
 
 ## Testing
 
