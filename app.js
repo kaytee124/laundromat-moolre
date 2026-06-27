@@ -8,6 +8,7 @@ const apiRoutes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { tokenRefreshMiddleware } = require('./middleware/auth');
 const { mountSwagger, isSwaggerEnabled } = require('./config/swagger');
+const { sequelize } = require('./models');
 
 const app = express();
 
@@ -24,8 +25,13 @@ if (isSwaggerEnabled()) {
   mountSwagger(app);
 }
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+app.get('/health', async (req, res) => {
+  try {
+    await sequelize.query('SELECT 1');
+    res.json({ status: 'ok', database: 'ok' });
+  } catch {
+    res.json({ status: 'degraded', database: 'unavailable' });
+  }
 });
 
 app.use('/api', apiRoutes);

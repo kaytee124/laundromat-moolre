@@ -19,6 +19,7 @@ const OrderItem = require('./OrderItem')(sequelize);
 const Payment = require('./Payment')(sequelize);
 const RefreshToken = require('./RefreshToken')(sequelize);
 const OrderStatusHistory = require('./OrderStatusHistory')(sequelize);
+const UssdSession = require('./UssdSession')(sequelize);
 
 // User self-reference
 User.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
@@ -71,4 +72,5 @@ module.exports = {
   Payment,
   RefreshToken,
   OrderStatusHistory,
+  UssdSession,
 };

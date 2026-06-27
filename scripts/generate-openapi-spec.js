@@ -48,6 +48,7 @@ const spec = {
     { name: 'Services' },
     { name: 'Orders' },
     { name: 'Payments' },
+    { name: 'Ussd' },
     { name: 'Dashboard' },
   ],
   paths: {
@@ -728,6 +729,43 @@ const spec = {
         },
       },
     },
+    '/api/ussd/payments/initialize/': {
+      post: {
+        tags: ['Ussd'],
+        summary: 'Initialize Paystack payment via USSD (no auth)',
+        description: 'Identifies the customer by phone number. No JWT required.',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/UssdPaymentInitializeRequest' } } },
+        },
+        responses: {
+          200: {
+            description: 'Payment initialized',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PaymentInitializeResponse' } } },
+          },
+          400: stdErrors[400],
+          404: stdErrors[404],
+          500: stdErrors[500],
+        },
+      },
+    },
+    '/api/ussd/callback/': {
+      post: {
+        tags: ['Ussd'],
+        summary: 'Moolre USSD callback',
+        description: 'Interactive USSD menu handler. Configure this URL in the Moolre dashboard.',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/MoolreUssdCallbackRequest' } } },
+        },
+        responses: {
+          200: {
+            description: 'USSD menu response',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/MoolreUssdCallbackResponse' } } },
+          },
+        },
+      },
+    },
     '/api/dashboard/metrics/': {
       get: {
         tags: ['Dashboard'],
@@ -805,7 +843,10 @@ const spec = {
       },
       HealthResponse: {
         type: 'object',
-        properties: { status: { type: 'string', example: 'ok' } },
+        properties: {
+          status: { type: 'string', enum: ['ok', 'degraded'], example: 'ok' },
+          database: { type: 'string', enum: ['ok', 'unavailable'], example: 'ok' },
+        },
       },
       CsrfResponse: {
         type: 'object',
@@ -1267,6 +1308,35 @@ const spec = {
         properties: {
           order_id: { type: 'integer' },
           amount: { type: 'number' },
+        },
+      },
+      UssdPaymentInitializeRequest: {
+        type: 'object',
+        required: ['phone_number', 'order_id', 'amount'],
+        properties: {
+          phone_number: { type: 'string', example: '0200000001' },
+          order_id: { type: 'integer' },
+          amount: { type: 'number' },
+        },
+      },
+      MoolreUssdCallbackRequest: {
+        type: 'object',
+        properties: {
+          sessionId: { type: 'string', description: 'Unique USSD session id (also accepted as sessionid)' },
+          new: { type: 'boolean', description: 'True when the user first dials the code' },
+          msisdn: { type: 'string', example: '233200000001' },
+          network: { type: 'integer', description: '3=MTN, 5=AT, 6=Telecel' },
+          message: { type: 'string', description: 'User input for continuing sessions' },
+          extension: { type: 'string' },
+          data: { type: 'string' },
+        },
+      },
+      MoolreUssdCallbackResponse: {
+        type: 'object',
+        required: ['message', 'reply'],
+        properties: {
+          message: { type: 'string' },
+          reply: { type: 'boolean', description: 'True if another user input is expected' },
         },
       },
       PaymentInitializeData: {

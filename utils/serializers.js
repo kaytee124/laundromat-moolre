@@ -197,6 +197,7 @@ function formatService(service) {
 
 module.exports = {
   formatUser,
+  getUserName,
   formatUserListItem,
   formatClientListItem,
   formatUserProfile,
