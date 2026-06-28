@@ -1,4 +1,6 @@
 const { AppError } = require('../utils/errors');
+const { User } = require('../models');
+const { authenticate } = require('./auth');
 
 function requireRole(...roles) {
   return (req, res, next) => {
@@ -19,6 +21,23 @@ const isEmployee = requireRole('employee');
 const isClient = requireRole('client');
 const isStaff = requireRole('admin', 'employee', 'superadmin');
 
+async function requireSuperadminCreationAccess(req, res, next) {
+  try {
+    const superadminCount = await User.count({ where: { role: 'superadmin' } });
+
+    if (superadminCount === 0) {
+      return next();
+    }
+
+    return authenticate(req, res, (err) => {
+      if (err) return next(err);
+      isSuperadmin(req, res, next);
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   isSuperadmin,
   isAdmin,
@@ -26,4 +45,5 @@ module.exports = {
   isEmployee,
   isClient,
   isStaff,
+  requireSuperadminCreationAccess,
 };

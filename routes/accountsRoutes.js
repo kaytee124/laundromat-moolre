@@ -10,6 +10,7 @@ const {
   isEmployee,
   isClient,
   isStaff,
+  requireSuperadminCreationAccess,
 } = require('../middleware/permissions');
 
 const router = express.Router();
@@ -36,7 +37,7 @@ router.patch('/employee/update/', authenticate, isEmployee, asyncHandler(account
 router.patch('/staff/client/:userId/update/', authenticate, isStaff, asyncHandler(accountsController.updateClientByStaff));
 router.get('/staff/user/:userId/', authenticate, isStaff, asyncHandler(accountsController.getStaffUserById));
 
-router.post('/superadmin/create/', authenticate, isSuperadmin, asyncHandler(accountsController.createSuperadmin));
+router.post('/superadmin/create/', requireSuperadminCreationAccess, asyncHandler(accountsController.createSuperadmin));
 router.patch('/superadmin/admin/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateAdmin));
 router.patch('/superadmin/employee/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateEmployee));
 router.patch('/superadmin/client/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateClient));

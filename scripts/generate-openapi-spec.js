@@ -347,7 +347,8 @@ const spec = {
       post: {
         tags: ['Accounts'],
         summary: 'Create superadmin',
-        security: bearer,
+        description:
+          'Public when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffCreateRequest' } } },

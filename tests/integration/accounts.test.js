@@ -327,4 +327,60 @@ describe('Accounts API', () => {
         });
     });
   });
+
+  describe('POST /api/accounts/superadmin/create/ bootstrap', () => {
+    let savedSuperadmin;
+
+    beforeAll(async () => {
+      savedSuperadmin = await User.findByPk(ctx.superadmin.id);
+      await User.destroy({ where: { role: 'superadmin' } });
+    });
+
+    afterAll(async () => {
+      await User.destroy({ where: { role: 'superadmin' } });
+      if (savedSuperadmin) {
+        const plain = savedSuperadmin.get({ plain: true });
+        await User.create(plain);
+      }
+    });
+
+    it('creates the first superadmin without authentication', async () => {
+      const res = await request(app)
+        .post('/api/accounts/superadmin/create/')
+        .send({
+          username: uniqueUsername('bootstrap'),
+          email: uniqueEmail('bootstrap'),
+          first_name: 'Bootstrap',
+          last_name: 'Super',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.user.role).toBe('superadmin');
+    });
+
+    it('rejects a second superadmin without authentication', async () => {
+      const res = await request(app)
+        .post('/api/accounts/superadmin/create/')
+        .send({
+          username: uniqueUsername('bootstrap2'),
+          email: uniqueEmail('bootstrap2'),
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error_code).toBe('NO_TOKEN');
+    });
+
+    it('rejects superadmin creation by non-superadmin', async () => {
+      const res = await request(app)
+        .post('/api/accounts/superadmin/create/')
+        .set(tokens.admin.headers)
+        .send({
+          username: uniqueUsername('bootstrap3'),
+          email: uniqueEmail('bootstrap3'),
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error_code).toBe('PERMISSION_DENIED');
+    });
+  });
 });

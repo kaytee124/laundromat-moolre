@@ -929,11 +929,7 @@
           "Accounts"
         ],
         "summary": "Create superadmin",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "description": "Public when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.",
         "requestBody": {
           "required": true,
           "content": {

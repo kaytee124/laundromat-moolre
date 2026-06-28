@@ -61,6 +61,15 @@ async function createEmployee(data, updatedBy) {
 }
 
 async function createSuperadmin(data, updatedBy) {
+  const superadminCount = await User.count({ where: { role: 'superadmin' } });
+  if (superadminCount > 0 && !updatedBy) {
+    throw new AppError(
+      'PERMISSION_DENIED',
+      'Superadmin creation requires an existing superadmin',
+      403
+    );
+  }
+
   return createStaffUser(
     { ...data, role: 'superadmin', flags: { is_active: true, is_staff: true, is_superuser: true } },
     updatedBy
