@@ -2,31 +2,54 @@ const path = require('path');
 const fs = require('fs');
 const swaggerUi = require('swagger-ui-express');
 
+let baseSpec = null;
+
 function isSwaggerEnabled() {
   return process.env.SWAGGER_ENABLED !== 'false';
 }
 
-function loadOpenApiSpec() {
-  const specPath = path.join(__dirname, '..', 'docs', 'openapi.json');
-  const raw = JSON.parse(fs.readFileSync(specPath, 'utf8'));
-  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+function loadBaseOpenApiSpec() {
+  if (!baseSpec) {
+    const specPath = path.join(__dirname, '..', 'docs', 'openapi.json');
+    baseSpec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+  }
+  return baseSpec;
+}
+
+function resolveBaseUrl(req) {
+  const host = req.get('host');
+  if (!host) {
+    throw new Error('Host header is required to resolve Swagger server URL');
+  }
+  return `${req.protocol}://${host}`;
+}
+
+function getOpenApiSpecForRequest(req) {
+  const baseUrl = resolveBaseUrl(req);
   return {
-    ...raw,
+    ...loadBaseOpenApiSpec(),
     servers: [{ url: baseUrl, description: 'Current environment' }],
   };
 }
 
+function loadOpenApiSpec(req) {
+  return getOpenApiSpecForRequest(req);
+}
+
 function mountSwagger(app) {
-  const spec = loadOpenApiSpec();
+  const initialSpec = {
+    ...loadBaseOpenApiSpec(),
+    servers: [{ url: '/', description: 'Current environment' }],
+  };
 
   app.get('/api/docs/openapi.json', (req, res) => {
-    res.json(spec);
+    res.json(getOpenApiSpecForRequest(req));
   });
 
   app.use(
     '/api/docs',
     swaggerUi.serve,
-    swaggerUi.setup(spec, {
+    swaggerUi.setup(initialSpec, {
       customSiteTitle: 'Bubblebytes API',
       swaggerOptions: {
         url: '/api/docs/openapi.json',
@@ -39,4 +62,6 @@ module.exports = {
   isSwaggerEnabled,
   mountSwagger,
   loadOpenApiSpec,
+  getOpenApiSpecForRequest,
+  resolveBaseUrl,
 };

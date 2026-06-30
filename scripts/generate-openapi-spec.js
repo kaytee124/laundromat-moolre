@@ -3,19 +3,118 @@
 const fs = require('fs');
 const path = require('path');
 
-const errorRef = (code) => ({
-  description: code,
-  content: { 'application/json': { schema: { $ref: '#/components/schemas/ApiError' } } },
-});
+const ERROR_CATALOG = {
+  NO_TOKEN: { error_code: 'NO_TOKEN', message: 'Authentication credentials not provided', status_code: 401 },
+  MISSING_TOKEN: { error_code: 'MISSING_TOKEN', message: 'Refresh token is required', status_code: 401 },
+  INVALID_TOKEN: { error_code: 'INVALID_TOKEN', message: 'Invalid or expired token', status_code: 401 },
+  INVALID_CREDENTIALS: { error_code: 'INVALID_CREDENTIALS', message: 'Invalid username or password', status_code: 401 },
+  PERMISSION_DENIED: { error_code: 'PERMISSION_DENIED', message: 'You do not have permission to perform this action', status_code: 403 },
+  CSRF_VALIDATION_FAILED: { error_code: 'CSRF_VALIDATION_FAILED', message: 'CSRF token missing or invalid', status_code: 403 },
+  INSUFFICIENT_PERMISSIONS: { error_code: 'INSUFFICIENT_PERMISSIONS', message: 'Only staff can update orders', status_code: 403 },
+  NOT_FOUND: { error_code: 'NOT_FOUND', message: 'User not found', status_code: 404 },
+  ORDER_NOT_FOUND: { error_code: 'ORDER_NOT_FOUND', message: 'Order not found', status_code: 404 },
+  CUSTOMER_NOT_FOUND: { error_code: 'CUSTOMER_NOT_FOUND', message: 'Customer profile not found', status_code: 404 },
+  MISSING_FIELDS: { error_code: 'MISSING_FIELDS', message: 'Username and password are required', status_code: 400 },
+  VALIDATION_ERROR: { error_code: 'VALIDATION_ERROR', message: 'Validation failed', status_code: 400 },
+  ORDER_ALREADY_PAID: { error_code: 'ORDER_ALREADY_PAID', message: 'This order has already been fully paid', status_code: 400 },
+  NO_AMOUNT_DUE: { error_code: 'NO_AMOUNT_DUE', message: 'No amount due for this order', status_code: 400 },
+  AMOUNT_EXCEEDS_BALANCE: { error_code: 'AMOUNT_EXCEEDS_BALANCE', message: 'Payment amount cannot exceed remaining balance', status_code: 400 },
+  MISSING_DATES: { error_code: 'MISSING_DATES', message: 'Start date and end date are required', status_code: 400 },
+  INVALID_DATE_RANGE: { error_code: 'INVALID_DATE_RANGE', message: 'End date must be after start date', status_code: 400 },
+  DATE_RANGE_TOO_LARGE: { error_code: 'DATE_RANGE_TOO_LARGE', message: 'Date range cannot exceed 366 days', status_code: 400 },
+  USERNAME_EXISTS: { error_code: 'USERNAME_EXISTS', message: 'Username already taken', status_code: 409 },
+  EMAIL_EXISTS: { error_code: 'EMAIL_EXISTS', message: 'Email already registered', status_code: 409 },
+  PHONE_EXISTS: { error_code: 'PHONE_EXISTS', message: 'Phone number already registered', status_code: 409 },
+  INVALID_PASSWORD: { error_code: 'INVALID_PASSWORD', message: 'Password must be at least 8 characters', status_code: 422 },
+  INVALID_DATE_FORMAT: { error_code: 'INVALID_DATE_FORMAT', message: 'Dates must be in YYYY-MM-DD format', status_code: 422 },
+  PAYSTACK_ERROR: { error_code: 'PAYSTACK_ERROR', message: 'Failed to initialize payment', status_code: 500 },
+  SERVER_ERROR: { error_code: 'SERVER_ERROR', message: 'An unexpected error occurred', status_code: 500 },
+};
+
+const DEFAULT_ERROR_KEYS = {
+  400: ['VALIDATION_ERROR', 'MISSING_FIELDS'],
+  401: ['NO_TOKEN', 'INVALID_TOKEN'],
+  403: ['PERMISSION_DENIED', 'CSRF_VALIDATION_FAILED'],
+  404: ['NOT_FOUND', 'ORDER_NOT_FOUND'],
+  409: ['USERNAME_EXISTS', 'EMAIL_EXISTS'],
+  422: ['VALIDATION_ERROR', 'INVALID_PASSWORD'],
+  500: ['PAYSTACK_ERROR', 'SERVER_ERROR'],
+};
+
+function errorResponse(status, description, ...keys) {
+  const codes = keys.length ? keys : DEFAULT_ERROR_KEYS[status] || ['VALIDATION_ERROR'];
+  const examples = {};
+  codes.forEach((key) => {
+    if (ERROR_CATALOG[key]) examples[key] = { value: ERROR_CATALOG[key] };
+  });
+  const body = { schema: { $ref: '#/components/schemas/ApiError' } };
+  if (Object.keys(examples).length) body.examples = examples;
+  return { description, content: { 'application/json': body } };
+}
+
+function jsonResponse(description, schemaRef, example) {
+  const body = { schema: { $ref: schemaRef } };
+  if (example !== undefined) body.example = example;
+  return { description, content: { 'application/json': body } };
+}
 
 const stdErrors = {
-  400: errorRef('Bad request'),
-  401: errorRef('Unauthorized'),
-  403: errorRef('Forbidden'),
-  404: errorRef('Not found'),
-  409: errorRef('Conflict'),
-  422: errorRef('Validation error'),
-  500: errorRef('Server error'),
+  400: errorResponse(400, 'Bad request'),
+  401: errorResponse(401, 'Unauthorized'),
+  403: errorResponse(403, 'Forbidden'),
+  404: errorResponse(404, 'Not found'),
+  409: errorResponse(409, 'Conflict'),
+  422: errorResponse(422, 'Validation error'),
+  500: errorResponse(500, 'Server error'),
+};
+
+const EXAMPLE_USER = {
+  id: 1,
+  username: 'client1',
+  email: 'client1@example.com',
+  first_name: 'Jane',
+  last_name: 'Doe',
+  role: 'client',
+  is_active: true,
+  is_staff: false,
+  is_superuser: false,
+};
+
+const EXAMPLE_SERVICE = {
+  id: 1,
+  name: 'Wash & Fold',
+  description: 'Standard laundry service',
+  price: '25.00',
+  unit: 'per item',
+  category: 'wash',
+  estimated_days: 2,
+  is_active: true,
+};
+
+const EXAMPLE_ORDER = {
+  id: 1,
+  order_number: 'ORD-ABC12345',
+  customer_id: 1,
+  customer_username: 'client1',
+  customer_name: 'Jane Doe',
+  assigned_to: 2,
+  assigned_to_username: 'employee1',
+  order_status: 'pending',
+  payment_status: 'pending',
+  total_amount: '50.00',
+  amount_paid: '0.00',
+  discount_amount: '0.00',
+  order_items: [
+    {
+      id: 1,
+      service_id: 1,
+      service_name: 'Wash & Fold',
+      item_name: 'Wash & Fold',
+      quantity: 2,
+      unit_price: '25.00',
+      subtotal: '50.00',
+    },
+  ],
 };
 
 const bearer = [{ bearerAuth: [] }];
@@ -31,6 +130,12 @@ const spec = {
     description: [
       'REST API for laundry order management, customers, payments, and dashboards.',
       '',
+      '**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).',
+      '',
+      '**Success envelope** (most mutations): `{ "status": "success", "message": "...", "data": { ... } }`',
+      '',
+      '**Error format**: `{ "error_code": "CODE", "message": "Human-readable message", "status_code": 400 }`',
+      '',
       '**Authentication**',
       '1. `GET /api/accounts/csrf/` — receive `csrf_token` (also set as cookie).',
       '2. For login/logout/refresh: send `X-CSRF-Token` header matching the cookie.',
@@ -40,7 +145,7 @@ const spec = {
       '**Roles**: `superadmin`, `admin`, `employee`, `client`.',
     ].join('\n'),
   },
-  servers: [{ url: 'http://localhost:3000', description: 'Overwritten at runtime from BASE_URL' }],
+  servers: [{ url: '/', description: 'Resolved from request host at runtime' }],
   tags: [
     { name: 'Health' },
     { name: 'Accounts' },
@@ -57,10 +162,10 @@ const spec = {
         tags: ['Health'],
         summary: 'Health check',
         responses: {
-          200: {
-            description: 'Service is healthy',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/HealthResponse' } } },
-          },
+          200: jsonResponse(
+            'Healthy or degraded (database check included)',
+            '#/components/schemas/HealthResponse'
+          ),
         },
       },
     },
@@ -70,10 +175,9 @@ const spec = {
         summary: 'Issue CSRF token',
         description: 'Sets CSRF cookie and returns token for mutating auth requests.',
         responses: {
-          200: {
-            description: 'CSRF token issued',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/CsrfResponse' } } },
-          },
+          200: jsonResponse('CSRF token issued', '#/components/schemas/CsrfResponse', {
+            csrf_token: 'csrf-token-example',
+          }),
         },
       },
     },
@@ -87,13 +191,14 @@ const spec = {
           content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginRequest' } } },
         },
         responses: {
-          200: {
-            description: 'Login successful',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/LoginResponse' } } },
-          },
-          400: stdErrors[400],
-          401: stdErrors[401],
-          403: stdErrors[403],
+          200: jsonResponse('Login successful', '#/components/schemas/LoginResponse', {
+            access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example',
+            user: EXAMPLE_USER,
+            requires_password_change: false,
+          }),
+          400: errorResponse(400, 'Missing credentials', 'MISSING_FIELDS'),
+          401: errorResponse(401, 'Invalid credentials', 'INVALID_CREDENTIALS'),
+          403: errorResponse(403, 'CSRF validation failed', 'CSRF_VALIDATION_FAILED'),
         },
       },
     },
@@ -103,12 +208,11 @@ const spec = {
         summary: 'Logout',
         security: bearerCsrf,
         responses: {
-          200: {
-            description: 'Logged out',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/MessageResponse' } } },
-          },
+          200: jsonResponse('Logged out', '#/components/schemas/MessageResponse', {
+            message: 'Logged out successfully',
+          }),
           401: stdErrors[401],
-          403: stdErrors[403],
+          403: errorResponse(403, 'CSRF validation failed', 'CSRF_VALIDATION_FAILED'),
         },
       },
     },
@@ -837,10 +941,14 @@ const spec = {
         type: 'object',
         required: ['error_code', 'message', 'status_code'],
         properties: {
-          error_code: { type: 'string' },
+          error_code: {
+            type: 'string',
+            enum: Object.keys(ERROR_CATALOG),
+          },
           message: { type: 'string' },
           status_code: { type: 'integer' },
         },
+        example: ERROR_CATALOG.NO_TOKEN,
       },
       HealthResponse: {
         type: 'object',
@@ -848,6 +956,7 @@ const spec = {
           status: { type: 'string', enum: ['ok', 'degraded'], example: 'ok' },
           database: { type: 'string', enum: ['ok', 'unavailable'], example: 'ok' },
         },
+        example: { status: 'ok', database: 'ok' },
       },
       CsrfResponse: {
         type: 'object',
@@ -886,6 +995,11 @@ const spec = {
           user: { $ref: '#/components/schemas/User' },
           requires_password_change: { type: 'boolean' },
           message: { type: 'string' },
+        },
+        example: {
+          access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example',
+          user: EXAMPLE_USER,
+          requires_password_change: false,
         },
       },
       RefreshResponse: {
@@ -1362,6 +1476,12 @@ const spec = {
         properties: {
           success: { type: 'boolean' },
           message: { type: 'string' },
+          order_id: { type: 'integer', description: 'Present on successful verification' },
+        },
+        example: {
+          success: true,
+          message: 'Payment processed successfully',
+          order_id: 1,
         },
       },
       DashboardMetricsResponse: {
@@ -1412,6 +1532,382 @@ const spec = {
     },
   },
 };
+
+const EXAMPLE_PAYMENT_INIT = {
+  status: 'success',
+  message: 'Payment initialized successfully',
+  data: {
+    authorization_url: 'https://checkout.paystack.com/example',
+    access_code: 'ACCESS_CODE',
+    reference: 'REF-123456',
+    payment_id: 1,
+  },
+};
+
+const EXAMPLE_PAGINATED_ORDERS = {
+  status: 'success',
+  data: {
+    count: 1,
+    page: 1,
+    page_size: 20,
+    total_pages: 1,
+    results: [EXAMPLE_ORDER],
+  },
+};
+
+const EXAMPLE_PAGINATED_USERS = {
+  count: 1,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+  results: [{ id: 2, first_name: 'Admin', last_name: 'User', email: 'admin@example.com', status: 'active' }],
+};
+
+const EXAMPLE_PAGINATED_CLIENTS = {
+  count: 1,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+  results: [{
+    id: 1,
+    first_name: 'Jane',
+    last_name: 'Doe',
+    email: 'client1@example.com',
+    status: 'active',
+    username: 'client1',
+    phone_number: '0200000001',
+    total_orders: 3,
+    total_spent: '150.00',
+    customer: { id: 1 },
+  }],
+};
+
+const EXAMPLE_REVENUE = {
+  status: 'success',
+  data: {
+    summary: {
+      unique_orders: 10,
+      total_transactions: 12,
+      grand_total: '1200.00',
+      min_transaction: '25.00',
+      max_transaction: '200.00',
+      average_transaction: '100.00',
+    },
+    daily_breakdown: [
+      { date: '2025-06-01', payment_method: 'card', transaction_count: 5, total_amount: 500 },
+    ],
+  },
+};
+
+/** Patch path operations and request bodies with examples aligned to controllers. */
+function applyDocumentation(openApiSpec) {
+  const { schemas } = openApiSpec.components;
+
+  schemas.CustomerRegisterResponse.example = {
+    message: 'Registration successful',
+    user: EXAMPLE_USER,
+    customer: { id: 1 },
+  };
+  schemas.CustomerStaffCreateResponse.example = {
+    message: 'Customer created successfully with default password',
+    user: EXAMPLE_USER,
+    customer: { id: 1 },
+    default_password: 'TempPass123!',
+    note: 'Customer should change password on first login',
+  };
+  schemas.StaffCreateResponse.example = {
+    message: 'Admin created successfully with default password',
+    user: { ...EXAMPLE_USER, role: 'admin', is_staff: true },
+    default_password: 'TempPass123!',
+    note: 'User should change password on first login',
+  };
+  schemas.ServiceListResponse.example = { status: 'success', data: [EXAMPLE_SERVICE] };
+  schemas.ServiceDetailResponse.example = { status: 'success', data: EXAMPLE_SERVICE };
+  schemas.ServiceMutationResponse.example = {
+    status: 'success',
+    message: 'Service created successfully',
+    data: EXAMPLE_SERVICE,
+  };
+  schemas.OrderMutationResponse.example = {
+    status: 'success',
+    message: 'Order created successfully',
+    data: EXAMPLE_ORDER,
+  };
+  schemas.PaymentInitializeResponse.example = EXAMPLE_PAYMENT_INIT;
+  schemas.MoolreUssdCallbackResponse.example = {
+    message: 'Welcome to Bubblebytes\n1. My Orders\n2. Payment History\n0. Exit',
+    reply: true,
+  };
+  schemas.PaginatedUserList.example = EXAMPLE_PAGINATED_USERS;
+  schemas.PaginatedClientList.example = EXAMPLE_PAGINATED_CLIENTS;
+  schemas.PasswordChangedResponse.example = {
+    message: 'Password changed successfully',
+    password_changed: true,
+  };
+  schemas.ProfileResponse.example = {
+    message: 'User profile retrieved successfully',
+    user: {
+      username: 'client1',
+      first_name: 'Jane',
+      last_name: 'Doe',
+      email: 'client1@example.com',
+      status: 'active',
+      phone_number: '0200000001',
+      total_orders: 3,
+      total_spent: '150.00',
+    },
+  };
+  schemas.ProfileUpdateResponse.example = {
+    message: 'Profile updated successfully',
+    user: EXAMPLE_USER,
+  };
+  schemas.RefreshResponse.example = { access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed' };
+  schemas.DashboardMetricsResponse.example = {
+    status: 'success',
+    data: { total_orders: 42, pending_orders: 5, revenue_today: '350.00' },
+  };
+  schemas.RevenueReportResponse.example = EXAMPLE_REVENUE;
+
+  const opKey = (path, method) => `${method.toUpperCase()} ${path}`;
+
+  const successExamples = {
+    [opKey('/health', 'get')]: {
+      200: {
+        healthy: { value: { status: 'ok', database: 'ok' } },
+        degraded: { value: { status: 'degraded', database: 'unavailable' } },
+      },
+    },
+    [opKey('/api/accounts/token/refresh/', 'post')]: {
+      200: { access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed' },
+    },
+    [opKey('/api/accounts/token/verify/', 'post')]: {
+      200: {},
+    },
+    [opKey('/api/accounts/change-password/', 'post')]: {
+      200: schemas.PasswordChangedResponse.example,
+    },
+    [opKey('/api/accounts/change-password/', 'put')]: {
+      200: schemas.PasswordChangedResponse.example,
+    },
+    [opKey('/api/accounts/user/profile/', 'get')]: {
+      200: schemas.ProfileResponse.example,
+    },
+    [opKey('/api/accounts/client/update/', 'patch')]: {
+      200: schemas.ProfileUpdateResponse.example,
+    },
+    [opKey('/api/accounts/admin/create/', 'post')]: {
+      201: {
+        message: 'Admin created successfully with default password',
+        user: { ...EXAMPLE_USER, role: 'admin', is_staff: true },
+        default_password: 'TempPass123!',
+        note: 'User should change password on first login',
+      },
+    },
+    [opKey('/api/accounts/admin/update/', 'patch')]: {
+      200: schemas.ProfileUpdateResponse.example,
+    },
+    [opKey('/api/accounts/admin/employee/{userId}/update/', 'patch')]: {
+      200: { message: 'Employee updated successfully', user: { ...EXAMPLE_USER, role: 'employee' } },
+    },
+    [opKey('/api/accounts/employee/create/', 'post')]: {
+      201: {
+        message: 'Employee created successfully with default password',
+        user: { ...EXAMPLE_USER, role: 'employee', is_staff: true },
+        default_password: 'TempPass123!',
+        note: 'User should change password on first login',
+      },
+    },
+    [opKey('/api/accounts/employee/update/', 'patch')]: {
+      200: schemas.ProfileUpdateResponse.example,
+    },
+    [opKey('/api/accounts/staff/client/{userId}/update/', 'patch')]: {
+      200: { message: 'Client updated successfully', user: EXAMPLE_USER },
+    },
+    [opKey('/api/accounts/staff/user/{userId}/', 'get')]: {
+      200: {
+        message: 'User profile retrieved successfully',
+        user: { ...EXAMPLE_USER, status: 'active', phone_number: '0200000001', customer: { id: 1 } },
+      },
+    },
+    [opKey('/api/accounts/superadmin/create/', 'post')]: {
+      201: {
+        message: 'Superadmin created successfully with default password',
+        user: { ...EXAMPLE_USER, role: 'superadmin', is_superuser: true, is_staff: true },
+        default_password: 'TempPass123!',
+        note: 'User should change password on first login',
+      },
+    },
+    [opKey('/api/accounts/superadmin/admin/{userId}/update/', 'patch')]: {
+      200: { message: 'Admin updated successfully', user: { ...EXAMPLE_USER, role: 'admin', is_staff: true } },
+    },
+    [opKey('/api/accounts/superadmin/employee/{userId}/update/', 'patch')]: {
+      200: { message: 'Employee updated successfully', user: { ...EXAMPLE_USER, role: 'employee' } },
+    },
+    [opKey('/api/accounts/superadmin/client/{userId}/update/', 'patch')]: {
+      200: { message: 'Client updated successfully', user: EXAMPLE_USER },
+    },
+    [opKey('/api/accounts/superadmin/user/{userId}/', 'get')]: {
+      200: {
+        message: 'User profile retrieved successfully',
+        user: { ...EXAMPLE_USER, status: 'active', phone_number: '0200000001', customer: { id: 1 } },
+      },
+    },
+    [opKey('/api/accounts/admins/', 'get')]: { 200: EXAMPLE_PAGINATED_USERS },
+    [opKey('/api/accounts/employees/', 'get')]: { 200: EXAMPLE_PAGINATED_USERS },
+    [opKey('/api/accounts/clients/', 'get')]: { 200: EXAMPLE_PAGINATED_CLIENTS },
+    [opKey('/api/customers/register/', 'post')]: { 201: schemas.CustomerRegisterResponse.example },
+    [opKey('/api/customers/create/', 'post')]: { 201: schemas.CustomerStaffCreateResponse.example },
+    [opKey('/api/services/list/', 'get')]: { 200: schemas.ServiceListResponse.example },
+    [opKey('/api/services/create/', 'post')]: { 201: schemas.ServiceMutationResponse.example },
+    [opKey('/api/services/{id}/', 'get')]: { 200: schemas.ServiceDetailResponse.example },
+    [opKey('/api/services/{id}/update/', 'patch')]: {
+      200: { status: 'success', message: 'Service updated successfully', data: EXAMPLE_SERVICE },
+    },
+    [opKey('/api/orders/list/', 'get')]: { 200: EXAMPLE_PAGINATED_ORDERS },
+    [opKey('/api/orders/create/', 'post')]: { 201: schemas.OrderMutationResponse.example },
+    [opKey('/api/orders/{id}/', 'get')]: { 200: { status: 'success', data: EXAMPLE_ORDER } },
+    [opKey('/api/orders/{id}/update/', 'put')]: {
+      200: { status: 'success', message: 'Order updated successfully', data: EXAMPLE_ORDER },
+    },
+    [opKey('/api/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
+    [opKey('/api/ussd/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
+    [opKey('/api/ussd/callback/', 'post')]: {
+      200: schemas.MoolreUssdCallbackResponse.example,
+    },
+    [opKey('/api/dashboard/metrics/', 'get')]: { 200: schemas.DashboardMetricsResponse.example },
+    [opKey('/api/dashboard/revenue-report/', 'get')]: { 200: EXAMPLE_REVENUE },
+  };
+
+  const errorOverrides = {
+    [opKey('/api/accounts/token/refresh/', 'post')]: {
+      401: errorResponse(401, 'Missing or invalid refresh token', 'MISSING_TOKEN', 'INVALID_TOKEN'),
+      403: errorResponse(403, 'CSRF validation failed', 'CSRF_VALIDATION_FAILED'),
+    },
+    [opKey('/api/accounts/superadmin/create/', 'post')]: {
+      401: errorResponse(401, 'Unauthorized after bootstrap', 'NO_TOKEN', 'INVALID_TOKEN'),
+      403: errorResponse(403, 'Requires superadmin after bootstrap', 'PERMISSION_DENIED'),
+      409: errorResponse(409, 'Username or email conflict', 'USERNAME_EXISTS', 'EMAIL_EXISTS'),
+    },
+    [opKey('/api/customers/register/', 'post')]: {
+      409: errorResponse(409, 'Duplicate registration', 'USERNAME_EXISTS', 'EMAIL_EXISTS', 'PHONE_EXISTS'),
+      422: errorResponse(422, 'Validation failed', 'INVALID_PASSWORD', 'VALIDATION_ERROR'),
+    },
+    [opKey('/api/payments/initialize/', 'post')]: {
+      400: errorResponse(400, 'Payment validation', 'ORDER_ALREADY_PAID', 'NO_AMOUNT_DUE', 'AMOUNT_EXCEEDS_BALANCE'),
+      403: errorResponse(403, 'Client only', 'PERMISSION_DENIED'),
+      404: errorResponse(404, 'Customer or order not found', 'CUSTOMER_NOT_FOUND', 'ORDER_NOT_FOUND'),
+      500: errorResponse(500, 'Paystack error', 'PAYSTACK_ERROR'),
+    },
+    [opKey('/api/payments/callback/', 'get')]: {
+      200: {
+        description: 'Verification result (success or failure)',
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/PaymentCallbackResponse' },
+            examples: {
+              success: {
+                value: { success: true, message: 'Payment processed successfully', order_id: 1 },
+              },
+              failure: {
+                value: { success: false, message: 'Failed to verify payment' },
+              },
+            },
+          },
+        },
+      },
+    },
+    [opKey('/api/ussd/payments/initialize/', 'post')]: {
+      404: errorResponse(404, 'Customer not found', 'CUSTOMER_NOT_FOUND'),
+      500: errorResponse(500, 'Paystack error', 'PAYSTACK_ERROR'),
+    },
+    [opKey('/api/dashboard/revenue-report/', 'get')]: {
+      400: errorResponse(400, 'Date validation', 'MISSING_DATES', 'INVALID_DATE_RANGE', 'DATE_RANGE_TOO_LARGE'),
+      422: errorResponse(422, 'Invalid date format', 'INVALID_DATE_FORMAT'),
+    },
+    [opKey('/api/orders/create/', 'post')]: {
+      403: errorResponse(403, 'Staff only', 'INSUFFICIENT_PERMISSIONS'),
+    },
+    [opKey('/api/orders/{id}/update/', 'put')]: {
+      403: errorResponse(403, 'Staff only', 'INSUFFICIENT_PERMISSIONS'),
+    },
+  };
+
+  const requestExamples = {
+    [opKey('/api/accounts/login/', 'post')]: {
+      username: 'client1',
+      password: 'secretpassword',
+    },
+    [opKey('/api/customers/register/', 'post')]: {
+      username: 'newclient',
+      email: 'new@example.com',
+      password: 'securepass1',
+      first_name: 'New',
+      last_name: 'Client',
+      phone_number: '0200000099',
+      whatsapp_number: '0200000099',
+      address: '123 Main St',
+      preferred_contact_method: 'phone',
+    },
+    [opKey('/api/ussd/callback/', 'post')]: {
+      sessionId: 'sess-abc-123',
+      new: true,
+      msisdn: '233200000001',
+      network: 3,
+      message: '',
+    },
+    [opKey('/api/ussd/payments/initialize/', 'post')]: {
+      phone_number: '0200000001',
+      order_id: 1,
+      amount: 50,
+    },
+    [opKey('/api/payments/initialize/', 'post')]: {
+      order_id: 1,
+      amount: 50,
+    },
+    [opKey('/api/orders/create/', 'post')]: {
+      customer_id: 1,
+      order_items_data: [{ service_id: 1, quantity: 2 }],
+    },
+  };
+
+  for (const [path, pathItem] of Object.entries(openApiSpec.paths)) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+
+      const key = opKey(path, method);
+
+      const overrides = errorOverrides[key];
+      if (overrides) {
+        Object.assign(operation.responses, overrides);
+      }
+
+      const examples = successExamples[key];
+      if (examples) {
+        for (const [status, exampleOrMap] of Object.entries(examples)) {
+          const response = operation.responses[status];
+          if (!response?.content?.['application/json']) continue;
+          const body = response.content['application/json'];
+          if (exampleOrMap && typeof exampleOrMap === 'object' && !Array.isArray(exampleOrMap)) {
+            const firstVal = Object.values(exampleOrMap)[0];
+            if (firstVal && typeof firstVal === 'object' && 'value' in firstVal) {
+              body.examples = exampleOrMap;
+              delete body.example;
+            } else if (!body.examples) {
+              body.example = exampleOrMap;
+            }
+          }
+        }
+      }
+
+      const reqExample = requestExamples[key];
+      if (reqExample && operation.requestBody?.content?.['application/json']) {
+        operation.requestBody.content['application/json'].example = reqExample;
+      }
+    }
+  }
+}
+
+applyDocumentation(spec);
 
 const outPath = path.join(__dirname, '..', 'docs', 'openapi.json');
 fs.mkdirSync(path.dirname(outPath), { recursive: true });

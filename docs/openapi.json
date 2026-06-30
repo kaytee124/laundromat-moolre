@@ -3,12 +3,12 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — receive `csrf_token` (also set as cookie).\n2. For login/logout/refresh: send `X-CSRF-Token` header matching the cookie.\n3. Login returns `access` JWT; use `Authorization: Bearer <access>`.\n4. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — receive `csrf_token` (also set as cookie).\n2. For login/logout/refresh: send `X-CSRF-Token` header matching the cookie.\n3. Login returns `access` JWT; use `Authorization: Bearer <access>`.\n4. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
-      "description": "Overwritten at runtime from BASE_URL"
+      "url": "/",
+      "description": "Resolved from request host at runtime"
     }
   ],
   "tags": [
@@ -46,11 +46,25 @@
         "summary": "Health check",
         "responses": {
           "200": {
-            "description": "Service is healthy",
+            "description": "Healthy or degraded (database check included)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                },
+                "examples": {
+                  "healthy": {
+                    "value": {
+                      "status": "ok",
+                      "database": "ok"
+                    }
+                  },
+                  "degraded": {
+                    "value": {
+                      "status": "degraded",
+                      "database": "unavailable"
+                    }
+                  }
                 }
               }
             }
@@ -72,6 +86,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CsrfResponse"
+                },
+                "example": {
+                  "csrf_token": "csrf-token-example"
                 }
               }
             }
@@ -96,6 +113,10 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "username": "client1",
+                "password": "secretpassword"
               }
             }
           }
@@ -107,36 +128,78 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoginResponse"
+                },
+                "example": {
+                  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  },
+                  "requires_password_change": false
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Missing credentials",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Invalid credentials",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INVALID_CREDENTIALS": {
+                    "value": {
+                      "error_code": "INVALID_CREDENTIALS",
+                      "message": "Invalid username or password",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "CSRF validation failed",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -165,6 +228,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                },
+                "example": {
+                  "message": "Logged out successfully"
                 }
               }
             }
@@ -175,16 +241,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "CSRF validation failed",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -213,26 +304,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RefreshResponse"
+                },
+                "example": {
+                  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Missing or invalid refresh token",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "MISSING_TOKEN": {
+                    "value": {
+                      "error_code": "MISSING_TOKEN",
+                      "message": "Refresh token is required",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "CSRF validation failed",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -263,7 +382,8 @@
               "application/json": {
                 "schema": {
                   "type": "object"
-                }
+                },
+                "example": {}
               }
             }
           },
@@ -273,6 +393,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -283,6 +419,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -318,6 +470,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PasswordChangedResponse"
+                },
+                "example": {
+                  "message": "Password changed successfully",
+                  "password_changed": true
                 }
               }
             }
@@ -328,6 +484,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -338,6 +510,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -371,6 +559,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PasswordChangedResponse"
+                },
+                "example": {
+                  "message": "Password changed successfully",
+                  "password_changed": true
                 }
               }
             }
@@ -381,6 +573,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -391,6 +599,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -416,6 +640,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileResponse"
+                },
+                "example": {
+                  "message": "User profile retrieved successfully",
+                  "user": {
+                    "username": "client1",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "email": "client1@example.com",
+                    "status": "active",
+                    "phone_number": "0200000001",
+                    "total_orders": 3,
+                    "total_spent": "150.00"
+                  }
                 }
               }
             }
@@ -426,6 +663,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -460,6 +713,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Profile updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -470,6 +737,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -480,6 +763,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -515,6 +814,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StaffCreateResponse"
+                },
+                "example": {
+                  "message": "Admin created successfully with default password",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "admin",
+                    "is_active": true,
+                    "is_staff": true,
+                    "is_superuser": false
+                  },
+                  "default_password": "TempPass123!",
+                  "note": "User should change password on first login"
                 }
               }
             }
@@ -525,6 +840,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -535,6 +866,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -545,6 +892,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "USERNAME_EXISTS": {
+                    "value": {
+                      "error_code": "USERNAME_EXISTS",
+                      "message": "Username already taken",
+                      "status_code": 409
+                    }
+                  },
+                  "EMAIL_EXISTS": {
+                    "value": {
+                      "error_code": "EMAIL_EXISTS",
+                      "message": "Email already registered",
+                      "status_code": 409
+                    }
+                  }
                 }
               }
             }
@@ -579,6 +942,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Profile updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -589,6 +966,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -599,6 +992,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -638,6 +1047,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Employee updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "employee",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -648,6 +1071,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -658,6 +1097,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -668,6 +1123,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -703,6 +1174,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StaffCreateResponse"
+                },
+                "example": {
+                  "message": "Employee created successfully with default password",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "employee",
+                    "is_active": true,
+                    "is_staff": true,
+                    "is_superuser": false
+                  },
+                  "default_password": "TempPass123!",
+                  "note": "User should change password on first login"
                 }
               }
             }
@@ -713,6 +1200,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -723,6 +1226,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -733,6 +1252,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "USERNAME_EXISTS": {
+                    "value": {
+                      "error_code": "USERNAME_EXISTS",
+                      "message": "Username already taken",
+                      "status_code": 409
+                    }
+                  },
+                  "EMAIL_EXISTS": {
+                    "value": {
+                      "error_code": "EMAIL_EXISTS",
+                      "message": "Email already registered",
+                      "status_code": 409
+                    }
+                  }
                 }
               }
             }
@@ -767,6 +1302,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Profile updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -777,6 +1326,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -787,6 +1352,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -826,6 +1407,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Client updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -836,6 +1431,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -846,6 +1457,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -856,6 +1483,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -886,6 +1529,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StaffUserDetailResponse"
+                },
+                "example": {
+                  "message": "User profile retrieved successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false,
+                    "status": "active",
+                    "phone_number": "0200000001",
+                    "customer": {
+                      "id": 1
+                    }
+                  }
                 }
               }
             }
@@ -896,6 +1558,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -906,6 +1584,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -916,6 +1610,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -947,36 +1657,93 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StaffCreateResponse"
+                },
+                "example": {
+                  "message": "Superadmin created successfully with default password",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "superadmin",
+                    "is_active": true,
+                    "is_staff": true,
+                    "is_superuser": true
+                  },
+                  "default_password": "TempPass123!",
+                  "note": "User should change password on first login"
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Unauthorized after bootstrap",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Requires superadmin after bootstrap",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Username or email conflict",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "USERNAME_EXISTS": {
+                    "value": {
+                      "error_code": "USERNAME_EXISTS",
+                      "message": "Username already taken",
+                      "status_code": 409
+                    }
+                  },
+                  "EMAIL_EXISTS": {
+                    "value": {
+                      "error_code": "EMAIL_EXISTS",
+                      "message": "Email already registered",
+                      "status_code": 409
+                    }
+                  }
                 }
               }
             }
@@ -1016,6 +1783,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Admin updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "admin",
+                    "is_active": true,
+                    "is_staff": true,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -1026,6 +1807,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1036,6 +1833,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1046,6 +1859,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1085,6 +1914,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Employee updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "employee",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -1095,6 +1938,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1105,6 +1964,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1115,6 +1990,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1154,6 +2045,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Client updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
                 }
               }
             }
@@ -1164,6 +2069,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1174,6 +2095,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1184,6 +2121,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1214,6 +2167,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SuperadminUserDetailResponse"
+                },
+                "example": {
+                  "message": "User profile retrieved successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false,
+                    "status": "active",
+                    "phone_number": "0200000001",
+                    "customer": {
+                      "id": 1
+                    }
+                  }
                 }
               }
             }
@@ -1224,6 +2196,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1234,6 +2222,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1244,6 +2248,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1280,6 +2300,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaginatedUserList"
+                },
+                "example": {
+                  "count": 1,
+                  "page": 1,
+                  "page_size": 20,
+                  "total_pages": 1,
+                  "results": [
+                    {
+                      "id": 2,
+                      "first_name": "Admin",
+                      "last_name": "User",
+                      "email": "admin@example.com",
+                      "status": "active"
+                    }
+                  ]
                 }
               }
             }
@@ -1290,6 +2325,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1300,6 +2351,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1336,6 +2403,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaginatedUserList"
+                },
+                "example": {
+                  "count": 1,
+                  "page": 1,
+                  "page_size": 20,
+                  "total_pages": 1,
+                  "results": [
+                    {
+                      "id": 2,
+                      "first_name": "Admin",
+                      "last_name": "User",
+                      "email": "admin@example.com",
+                      "status": "active"
+                    }
+                  ]
                 }
               }
             }
@@ -1346,6 +2428,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1356,6 +2454,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1392,6 +2506,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaginatedClientList"
+                },
+                "example": {
+                  "count": 1,
+                  "page": 1,
+                  "page_size": 20,
+                  "total_pages": 1,
+                  "results": [
+                    {
+                      "id": 1,
+                      "first_name": "Jane",
+                      "last_name": "Doe",
+                      "email": "client1@example.com",
+                      "status": "active",
+                      "username": "client1",
+                      "phone_number": "0200000001",
+                      "total_orders": 3,
+                      "total_spent": "150.00",
+                      "customer": {
+                        "id": 1
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1402,6 +2538,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1412,6 +2564,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1431,6 +2599,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CustomerRegisterRequest"
+              },
+              "example": {
+                "username": "newclient",
+                "email": "new@example.com",
+                "password": "securepass1",
+                "first_name": "New",
+                "last_name": "Client",
+                "phone_number": "0200000099",
+                "whatsapp_number": "0200000099",
+                "address": "123 Main St",
+                "preferred_contact_method": "phone"
               }
             }
           }
@@ -1442,6 +2621,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CustomerRegisterResponse"
+                },
+                "example": {
+                  "message": "Registration successful",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  },
+                  "customer": {
+                    "id": 1
+                  }
                 }
               }
             }
@@ -1452,26 +2648,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
           },
           "409": {
-            "description": "Conflict",
+            "description": "Duplicate registration",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "USERNAME_EXISTS": {
+                    "value": {
+                      "error_code": "USERNAME_EXISTS",
+                      "message": "Username already taken",
+                      "status_code": 409
+                    }
+                  },
+                  "EMAIL_EXISTS": {
+                    "value": {
+                      "error_code": "EMAIL_EXISTS",
+                      "message": "Email already registered",
+                      "status_code": 409
+                    }
+                  },
+                  "PHONE_EXISTS": {
+                    "value": {
+                      "error_code": "PHONE_EXISTS",
+                      "message": "Phone number already registered",
+                      "status_code": 409
+                    }
+                  }
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error",
+            "description": "Validation failed",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INVALID_PASSWORD": {
+                    "value": {
+                      "error_code": "INVALID_PASSWORD",
+                      "message": "Password must be at least 8 characters",
+                      "status_code": 422
+                    }
+                  },
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -1507,6 +2758,25 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CustomerStaffCreateResponse"
+                },
+                "example": {
+                  "message": "Customer created successfully with default password",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  },
+                  "customer": {
+                    "id": 1
+                  },
+                  "default_password": "TempPass123!",
+                  "note": "Customer should change password on first login"
                 }
               }
             }
@@ -1517,6 +2787,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1527,6 +2813,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1537,6 +2839,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "USERNAME_EXISTS": {
+                    "value": {
+                      "error_code": "USERNAME_EXISTS",
+                      "message": "Username already taken",
+                      "status_code": 409
+                    }
+                  },
+                  "EMAIL_EXISTS": {
+                    "value": {
+                      "error_code": "EMAIL_EXISTS",
+                      "message": "Email already registered",
+                      "status_code": 409
+                    }
+                  }
                 }
               }
             }
@@ -1566,6 +2884,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": [
+                    {
+                      "id": 1,
+                      "name": "Wash & Fold",
+                      "description": "Standard laundry service",
+                      "price": "25.00",
+                      "unit": "per item",
+                      "category": "wash",
+                      "estimated_days": 2,
+                      "is_active": true
+                    }
+                  ]
                 }
               }
             }
@@ -1601,6 +2934,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Service created successfully",
+                  "data": {
+                    "id": 1,
+                    "name": "Wash & Fold",
+                    "description": "Standard laundry service",
+                    "price": "25.00",
+                    "unit": "per item",
+                    "category": "wash",
+                    "estimated_days": 2,
+                    "is_active": true
+                  }
                 }
               }
             }
@@ -1611,6 +2958,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1621,6 +2984,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1651,6 +3030,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceDetailResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "id": 1,
+                    "name": "Wash & Fold",
+                    "description": "Standard laundry service",
+                    "price": "25.00",
+                    "unit": "per item",
+                    "category": "wash",
+                    "estimated_days": 2,
+                    "is_active": true
+                  }
                 }
               }
             }
@@ -1661,6 +3053,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1671,6 +3079,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1681,6 +3105,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1720,6 +3160,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ServiceMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Service updated successfully",
+                  "data": {
+                    "id": 1,
+                    "name": "Wash & Fold",
+                    "description": "Standard laundry service",
+                    "price": "25.00",
+                    "unit": "per item",
+                    "category": "wash",
+                    "estimated_days": 2,
+                    "is_active": true
+                  }
                 }
               }
             }
@@ -1730,6 +3184,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1740,6 +3210,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1750,6 +3236,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -1841,6 +3343,42 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "count": 1,
+                    "page": 1,
+                    "page_size": 20,
+                    "total_pages": 1,
+                    "results": [
+                      {
+                        "id": 1,
+                        "order_number": "ORD-ABC12345",
+                        "customer_id": 1,
+                        "customer_username": "client1",
+                        "customer_name": "Jane Doe",
+                        "assigned_to": 2,
+                        "assigned_to_username": "employee1",
+                        "order_status": "pending",
+                        "payment_status": "pending",
+                        "total_amount": "50.00",
+                        "amount_paid": "0.00",
+                        "discount_amount": "0.00",
+                        "order_items": [
+                          {
+                            "id": 1,
+                            "service_id": 1,
+                            "service_name": "Wash & Fold",
+                            "item_name": "Wash & Fold",
+                            "quantity": 2,
+                            "unit_price": "25.00",
+                            "subtotal": "50.00"
+                          }
+                        ]
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1851,6 +3389,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1861,6 +3415,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1885,6 +3455,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrderCreateRequest"
+              },
+              "example": {
+                "customer_id": 1,
+                "order_items_data": [
+                  {
+                    "service_id": 1,
+                    "quantity": 2
+                  }
+                ]
               }
             }
           }
@@ -1896,6 +3475,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Order created successfully",
+                  "data": {
+                    "id": 1,
+                    "order_number": "ORD-ABC12345",
+                    "customer_id": 1,
+                    "customer_username": "client1",
+                    "customer_name": "Jane Doe",
+                    "assigned_to": 2,
+                    "assigned_to_username": "employee1",
+                    "order_status": "pending",
+                    "payment_status": "pending",
+                    "total_amount": "50.00",
+                    "amount_paid": "0.00",
+                    "discount_amount": "0.00",
+                    "order_items": [
+                      {
+                        "id": 1,
+                        "service_id": 1,
+                        "service_name": "Wash & Fold",
+                        "item_name": "Wash & Fold",
+                        "quantity": 2,
+                        "unit_price": "25.00",
+                        "subtotal": "50.00"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1906,6 +3514,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -1916,16 +3540,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Staff only",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INSUFFICIENT_PERMISSIONS": {
+                    "value": {
+                      "error_code": "INSUFFICIENT_PERMISSIONS",
+                      "message": "Only staff can update orders",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1956,6 +3605,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderDetailResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "id": 1,
+                    "order_number": "ORD-ABC12345",
+                    "customer_id": 1,
+                    "customer_username": "client1",
+                    "customer_name": "Jane Doe",
+                    "assigned_to": 2,
+                    "assigned_to_username": "employee1",
+                    "order_status": "pending",
+                    "payment_status": "pending",
+                    "total_amount": "50.00",
+                    "amount_paid": "0.00",
+                    "discount_amount": "0.00",
+                    "order_items": [
+                      {
+                        "id": 1,
+                        "service_id": 1,
+                        "service_name": "Wash & Fold",
+                        "item_name": "Wash & Fold",
+                        "quantity": 2,
+                        "unit_price": "25.00",
+                        "subtotal": "50.00"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -1966,6 +3643,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -1976,6 +3669,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -1986,6 +3695,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -2025,6 +3750,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Order updated successfully",
+                  "data": {
+                    "id": 1,
+                    "order_number": "ORD-ABC12345",
+                    "customer_id": 1,
+                    "customer_username": "client1",
+                    "customer_name": "Jane Doe",
+                    "assigned_to": 2,
+                    "assigned_to_username": "employee1",
+                    "order_status": "pending",
+                    "payment_status": "pending",
+                    "total_amount": "50.00",
+                    "amount_paid": "0.00",
+                    "discount_amount": "0.00",
+                    "order_items": [
+                      {
+                        "id": 1,
+                        "service_id": 1,
+                        "service_name": "Wash & Fold",
+                        "item_name": "Wash & Fold",
+                        "quantity": 2,
+                        "unit_price": "25.00",
+                        "subtotal": "50.00"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -2035,16 +3789,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Staff only",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INSUFFICIENT_PERMISSIONS": {
+                    "value": {
+                      "error_code": "INSUFFICIENT_PERMISSIONS",
+                      "message": "Only staff can update orders",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
@@ -2055,6 +3834,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
@@ -2079,6 +3874,10 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PaymentInitializeRequest"
+              },
+              "example": {
+                "order_id": 1,
+                "amount": 50
               }
             }
           }
@@ -2090,16 +3889,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentInitializeResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Payment initialized successfully",
+                  "data": {
+                    "authorization_url": "https://checkout.paystack.com/example",
+                    "access_code": "ACCESS_CODE",
+                    "reference": "REF-123456",
+                    "payment_id": 1
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Payment validation",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "ORDER_ALREADY_PAID": {
+                    "value": {
+                      "error_code": "ORDER_ALREADY_PAID",
+                      "message": "This order has already been fully paid",
+                      "status_code": 400
+                    }
+                  },
+                  "NO_AMOUNT_DUE": {
+                    "value": {
+                      "error_code": "NO_AMOUNT_DUE",
+                      "message": "No amount due for this order",
+                      "status_code": 400
+                    }
+                  },
+                  "AMOUNT_EXCEEDS_BALANCE": {
+                    "value": {
+                      "error_code": "AMOUNT_EXCEEDS_BALANCE",
+                      "message": "Payment amount cannot exceed remaining balance",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -2110,36 +3942,86 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Client only",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Customer or order not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CUSTOMER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "CUSTOMER_NOT_FOUND",
+                      "message": "Customer profile not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "Paystack error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PAYSTACK_ERROR": {
+                    "value": {
+                      "error_code": "PAYSTACK_ERROR",
+                      "message": "Failed to initialize payment",
+                      "status_code": 500
+                    }
+                  }
                 }
               }
             }
@@ -2165,11 +4047,26 @@
         ],
         "responses": {
           "200": {
-            "description": "Verification result",
+            "description": "Verification result (success or failure)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentCallbackResponse"
+                },
+                "examples": {
+                  "success": {
+                    "value": {
+                      "success": true,
+                      "message": "Payment processed successfully",
+                      "order_id": 1
+                    }
+                  },
+                  "failure": {
+                    "value": {
+                      "success": false,
+                      "message": "Failed to verify payment"
+                    }
+                  }
                 }
               }
             }
@@ -2190,6 +4087,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UssdPaymentInitializeRequest"
+              },
+              "example": {
+                "phone_number": "0200000001",
+                "order_id": 1,
+                "amount": 50
               }
             }
           }
@@ -2201,6 +4103,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentInitializeResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Payment initialized successfully",
+                  "data": {
+                    "authorization_url": "https://checkout.paystack.com/example",
+                    "access_code": "ACCESS_CODE",
+                    "reference": "REF-123456",
+                    "payment_id": 1
+                  }
                 }
               }
             }
@@ -2211,26 +4123,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "Customer not found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CUSTOMER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "CUSTOMER_NOT_FOUND",
+                      "message": "Customer profile not found",
+                      "status_code": 404
+                    }
+                  }
                 }
               }
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "Paystack error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PAYSTACK_ERROR": {
+                    "value": {
+                      "error_code": "PAYSTACK_ERROR",
+                      "message": "Failed to initialize payment",
+                      "status_code": 500
+                    }
+                  }
                 }
               }
             }
@@ -2251,6 +4197,13 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MoolreUssdCallbackRequest"
+              },
+              "example": {
+                "sessionId": "sess-abc-123",
+                "new": true,
+                "msisdn": "233200000001",
+                "network": 3,
+                "message": ""
               }
             }
           }
@@ -2262,6 +4215,10 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MoolreUssdCallbackResponse"
+                },
+                "example": {
+                  "message": "Welcome to Bubblebytes\n1. My Orders\n2. Payment History\n0. Exit",
+                  "reply": true
                 }
               }
             }
@@ -2287,6 +4244,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardMetricsResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "total_orders": 42,
+                    "pending_orders": 5,
+                    "revenue_today": "350.00"
+                  }
                 }
               }
             }
@@ -2297,6 +4262,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -2355,16 +4336,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RevenueReportResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "summary": {
+                      "unique_orders": 10,
+                      "total_transactions": 12,
+                      "grand_total": "1200.00",
+                      "min_transaction": "25.00",
+                      "max_transaction": "200.00",
+                      "average_transaction": "100.00"
+                    },
+                    "daily_breakdown": [
+                      {
+                        "date": "2025-06-01",
+                        "payment_method": "card",
+                        "transaction_count": 5,
+                        "total_amount": 500
+                      }
+                    ]
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Date validation",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "MISSING_DATES": {
+                    "value": {
+                      "error_code": "MISSING_DATES",
+                      "message": "Start date and end date are required",
+                      "status_code": 400
+                    }
+                  },
+                  "INVALID_DATE_RANGE": {
+                    "value": {
+                      "error_code": "INVALID_DATE_RANGE",
+                      "message": "End date must be after start date",
+                      "status_code": 400
+                    }
+                  },
+                  "DATE_RANGE_TOO_LARGE": {
+                    "value": {
+                      "error_code": "DATE_RANGE_TOO_LARGE",
+                      "message": "Date range cannot exceed 366 days",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -2375,6 +4400,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
                 }
               }
             }
@@ -2385,16 +4426,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error",
+            "description": "Invalid date format",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INVALID_DATE_FORMAT": {
+                    "value": {
+                      "error_code": "INVALID_DATE_FORMAT",
+                      "message": "Dates must be in YYYY-MM-DD format",
+                      "status_code": 422
+                    }
+                  }
                 }
               }
             }
@@ -2478,7 +4544,34 @@
         ],
         "properties": {
           "error_code": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "NO_TOKEN",
+              "MISSING_TOKEN",
+              "INVALID_TOKEN",
+              "INVALID_CREDENTIALS",
+              "PERMISSION_DENIED",
+              "CSRF_VALIDATION_FAILED",
+              "INSUFFICIENT_PERMISSIONS",
+              "NOT_FOUND",
+              "ORDER_NOT_FOUND",
+              "CUSTOMER_NOT_FOUND",
+              "MISSING_FIELDS",
+              "VALIDATION_ERROR",
+              "ORDER_ALREADY_PAID",
+              "NO_AMOUNT_DUE",
+              "AMOUNT_EXCEEDS_BALANCE",
+              "MISSING_DATES",
+              "INVALID_DATE_RANGE",
+              "DATE_RANGE_TOO_LARGE",
+              "USERNAME_EXISTS",
+              "EMAIL_EXISTS",
+              "PHONE_EXISTS",
+              "INVALID_PASSWORD",
+              "INVALID_DATE_FORMAT",
+              "PAYSTACK_ERROR",
+              "SERVER_ERROR"
+            ]
           },
           "message": {
             "type": "string"
@@ -2486,6 +4579,11 @@
           "status_code": {
             "type": "integer"
           }
+        },
+        "example": {
+          "error_code": "NO_TOKEN",
+          "message": "Authentication credentials not provided",
+          "status_code": 401
         }
       },
       "HealthResponse": {
@@ -2507,6 +4605,10 @@
             ],
             "example": "ok"
           }
+        },
+        "example": {
+          "status": "ok",
+          "database": "ok"
         }
       },
       "CsrfResponse": {
@@ -2595,6 +4697,21 @@
           "message": {
             "type": "string"
           }
+        },
+        "example": {
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
+          "user": {
+            "id": 1,
+            "username": "client1",
+            "email": "client1@example.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "role": "client",
+            "is_active": true,
+            "is_staff": false,
+            "is_superuser": false
+          },
+          "requires_password_change": false
         }
       },
       "RefreshResponse": {
@@ -2603,6 +4720,9 @@
           "access": {
             "type": "string"
           }
+        },
+        "example": {
+          "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed"
         }
       },
       "TokenVerifyRequest": {
@@ -2644,6 +4764,10 @@
           "password_changed": {
             "type": "boolean"
           }
+        },
+        "example": {
+          "message": "Password changed successfully",
+          "password_changed": true
         }
       },
       "UserProfile": {
@@ -2706,6 +4830,19 @@
           "user": {
             "$ref": "#/components/schemas/UserProfile"
           }
+        },
+        "example": {
+          "message": "User profile retrieved successfully",
+          "user": {
+            "username": "client1",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": "client1@example.com",
+            "status": "active",
+            "phone_number": "0200000001",
+            "total_orders": 3,
+            "total_spent": "150.00"
+          }
         }
       },
       "ProfileUpdateResponse": {
@@ -2716,6 +4853,20 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          }
+        },
+        "example": {
+          "message": "Profile updated successfully",
+          "user": {
+            "id": 1,
+            "username": "client1",
+            "email": "client1@example.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "role": "client",
+            "is_active": true,
+            "is_staff": false,
+            "is_superuser": false
           }
         }
       },
@@ -2787,6 +4938,22 @@
           "note": {
             "type": "string"
           }
+        },
+        "example": {
+          "message": "Admin created successfully with default password",
+          "user": {
+            "id": 1,
+            "username": "client1",
+            "email": "client1@example.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "role": "admin",
+            "is_active": true,
+            "is_staff": true,
+            "is_superuser": false
+          },
+          "default_password": "TempPass123!",
+          "note": "User should change password on first login"
         }
       },
       "StaffSelfUpdateRequest": {
@@ -2980,6 +5147,21 @@
               "$ref": "#/components/schemas/UserListItem"
             }
           }
+        },
+        "example": {
+          "count": 1,
+          "page": 1,
+          "page_size": 20,
+          "total_pages": 1,
+          "results": [
+            {
+              "id": 2,
+              "first_name": "Admin",
+              "last_name": "User",
+              "email": "admin@example.com",
+              "status": "active"
+            }
+          ]
         }
       },
       "PaginatedClientList": {
@@ -3003,6 +5185,28 @@
               "$ref": "#/components/schemas/ClientListItem"
             }
           }
+        },
+        "example": {
+          "count": 1,
+          "page": 1,
+          "page_size": 20,
+          "total_pages": 1,
+          "results": [
+            {
+              "id": 1,
+              "first_name": "Jane",
+              "last_name": "Doe",
+              "email": "client1@example.com",
+              "status": "active",
+              "username": "client1",
+              "phone_number": "0200000001",
+              "total_orders": 3,
+              "total_spent": "150.00",
+              "customer": {
+                "id": 1
+              }
+            }
+          ]
         }
       },
       "CustomerRegisterRequest": {
@@ -3069,6 +5273,23 @@
                 "type": "integer"
               }
             }
+          }
+        },
+        "example": {
+          "message": "Registration successful",
+          "user": {
+            "id": 1,
+            "username": "client1",
+            "email": "client1@example.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "role": "client",
+            "is_active": true,
+            "is_staff": false,
+            "is_superuser": false
+          },
+          "customer": {
+            "id": 1
           }
         }
       },
@@ -3138,6 +5359,25 @@
           "note": {
             "type": "string"
           }
+        },
+        "example": {
+          "message": "Customer created successfully with default password",
+          "user": {
+            "id": 1,
+            "username": "client1",
+            "email": "client1@example.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "role": "client",
+            "is_active": true,
+            "is_staff": false,
+            "is_superuser": false
+          },
+          "customer": {
+            "id": 1
+          },
+          "default_password": "TempPass123!",
+          "note": "Customer should change password on first login"
         }
       },
       "Service": {
@@ -3185,6 +5425,21 @@
               "$ref": "#/components/schemas/Service"
             }
           }
+        },
+        "example": {
+          "status": "success",
+          "data": [
+            {
+              "id": 1,
+              "name": "Wash & Fold",
+              "description": "Standard laundry service",
+              "price": "25.00",
+              "unit": "per item",
+              "category": "wash",
+              "estimated_days": 2,
+              "is_active": true
+            }
+          ]
         }
       },
       "ServiceDetailResponse": {
@@ -3195,6 +5450,19 @@
           },
           "data": {
             "$ref": "#/components/schemas/Service"
+          }
+        },
+        "example": {
+          "status": "success",
+          "data": {
+            "id": 1,
+            "name": "Wash & Fold",
+            "description": "Standard laundry service",
+            "price": "25.00",
+            "unit": "per item",
+            "category": "wash",
+            "estimated_days": 2,
+            "is_active": true
           }
         }
       },
@@ -3262,6 +5530,20 @@
           },
           "data": {
             "$ref": "#/components/schemas/Service"
+          }
+        },
+        "example": {
+          "status": "success",
+          "message": "Service created successfully",
+          "data": {
+            "id": 1,
+            "name": "Wash & Fold",
+            "description": "Standard laundry service",
+            "price": "25.00",
+            "unit": "per item",
+            "category": "wash",
+            "estimated_days": 2,
+            "is_active": true
           }
         }
       },
@@ -3547,6 +5829,35 @@
           "data": {
             "$ref": "#/components/schemas/Order"
           }
+        },
+        "example": {
+          "status": "success",
+          "message": "Order created successfully",
+          "data": {
+            "id": 1,
+            "order_number": "ORD-ABC12345",
+            "customer_id": 1,
+            "customer_username": "client1",
+            "customer_name": "Jane Doe",
+            "assigned_to": 2,
+            "assigned_to_username": "employee1",
+            "order_status": "pending",
+            "payment_status": "pending",
+            "total_amount": "50.00",
+            "amount_paid": "0.00",
+            "discount_amount": "0.00",
+            "order_items": [
+              {
+                "id": 1,
+                "service_id": 1,
+                "service_name": "Wash & Fold",
+                "item_name": "Wash & Fold",
+                "quantity": 2,
+                "unit_price": "25.00",
+                "subtotal": "50.00"
+              }
+            ]
+          }
         }
       },
       "PaymentInitializeRequest": {
@@ -3629,6 +5940,10 @@
             "type": "boolean",
             "description": "True if another user input is expected"
           }
+        },
+        "example": {
+          "message": "Welcome to Bubblebytes\n1. My Orders\n2. Payment History\n0. Exit",
+          "reply": true
         }
       },
       "PaymentInitializeData": {
@@ -3661,6 +5976,16 @@
           "data": {
             "$ref": "#/components/schemas/PaymentInitializeData"
           }
+        },
+        "example": {
+          "status": "success",
+          "message": "Payment initialized successfully",
+          "data": {
+            "authorization_url": "https://checkout.paystack.com/example",
+            "access_code": "ACCESS_CODE",
+            "reference": "REF-123456",
+            "payment_id": 1
+          }
         }
       },
       "PaymentCallbackResponse": {
@@ -3671,7 +5996,16 @@
           },
           "message": {
             "type": "string"
+          },
+          "order_id": {
+            "type": "integer",
+            "description": "Present on successful verification"
           }
+        },
+        "example": {
+          "success": true,
+          "message": "Payment processed successfully",
+          "order_id": 1
         }
       },
       "DashboardMetricsResponse": {
@@ -3685,6 +6019,14 @@
             "type": "object",
             "additionalProperties": true,
             "description": "Shape depends on role (superadmin, admin, employee, client)"
+          }
+        },
+        "example": {
+          "status": "success",
+          "data": {
+            "total_orders": 42,
+            "pending_orders": 5,
+            "revenue_today": "350.00"
           }
         }
       },
@@ -3751,6 +6093,27 @@
           },
           "data": {
             "$ref": "#/components/schemas/RevenueReportData"
+          }
+        },
+        "example": {
+          "status": "success",
+          "data": {
+            "summary": {
+              "unique_orders": 10,
+              "total_transactions": 12,
+              "grand_total": "1200.00",
+              "min_transaction": "25.00",
+              "max_transaction": "200.00",
+              "average_transaction": "100.00"
+            },
+            "daily_breakdown": [
+              {
+                "date": "2025-06-01",
+                "payment_method": "card",
+                "transaction_count": 5,
+                "total_amount": 500
+              }
+            ]
           }
         }
       }

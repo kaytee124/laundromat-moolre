@@ -12,6 +12,10 @@ const { sequelize } = require('./models');
 
 const app = express();
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(cors({ origin: true, credentials: true }));
 if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'benchmark') {
   app.use(morgan('dev'));
