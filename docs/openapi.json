@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — receive `csrf_token` (also set as cookie).\n2. For login/logout/refresh: send `X-CSRF-Token` header matching the cookie.\n3. Login returns `access` JWT; use `Authorization: Bearer <access>`.\n4. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, payment callback, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -69,7 +69,9 @@
               }
             }
           }
-        }
+        },
+        "security": [],
+        "description": "**Required auth:** None"
       }
     },
     "/api/accounts/csrf/": {
@@ -78,7 +80,7 @@
           "Accounts"
         ],
         "summary": "Issue CSRF token",
-        "description": "Sets CSRF cookie and returns token for mutating auth requests.",
+        "description": "**Required auth:** None\n\nSets the `csrf_token` cookie and returns the same token in the JSON body. The body value is for API clients (Postman, scripts); browsers also need the cookie. For login/logout/refresh, send `X-CSRF-Token` matching the cookie (Swagger UI does this automatically).",
         "responses": {
           "200": {
             "description": "CSRF token issued",
@@ -93,7 +95,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/accounts/login/": {
@@ -102,6 +105,7 @@
           "Accounts"
         ],
         "summary": "Login",
+        "description": "**Required auth:** CSRF only — `csrf_token` cookie + `X-CSRF-Token` header (no JWT). Swagger auto-injects.\n\nRequires double-submit CSRF: `csrf_token` cookie (from GET /api/accounts/csrf/) AND `X-CSRF-Token` header with the same value. Swagger UI auto-injects CSRF; in Postman, call CSRF first, then set the header manually.",
         "security": [
           {
             "csrfHeader": []
@@ -280,7 +284,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Plus CSRF — `X-CSRF-Token` header matching `csrf_token` cookie."
       }
     },
     "/api/accounts/token/refresh/": {
@@ -356,7 +361,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Refresh cookie + CSRF — `refresh_token` HttpOnly cookie and `X-CSRF-Token` header (no Bearer)."
       }
     },
     "/api/accounts/token/verify/": {
@@ -439,7 +445,9 @@
               }
             }
           }
-        }
+        },
+        "security": [],
+        "description": "**Required auth:** None — JWT passed in request body field `token`, not `Authorization` header."
       }
     },
     "/api/accounts/change-password/": {
@@ -530,7 +538,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user."
       },
       "put": {
         "tags": [
@@ -619,7 +628,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user."
       }
     },
     "/api/accounts/user/profile/": {
@@ -683,7 +693,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user."
       }
     },
     "/api/accounts/client/update/": {
@@ -783,7 +794,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client."
       }
     },
     "/api/accounts/admin/create/": {
@@ -912,7 +924,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/admin/update/": {
@@ -1012,7 +1025,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/accounts/admin/employee/{userId}/update/": {
@@ -1143,7 +1157,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin."
       }
     },
     "/api/accounts/employee/create/": {
@@ -1272,7 +1287,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/accounts/employee/update/": {
@@ -1372,7 +1388,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: employee."
       }
     },
     "/api/accounts/staff/client/{userId}/update/": {
@@ -1503,7 +1520,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/accounts/staff/user/{userId}/": {
@@ -1630,7 +1648,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/accounts/superadmin/create/": {
@@ -1639,7 +1658,7 @@
           "Accounts"
         ],
         "summary": "Create superadmin",
-        "description": "Public when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.",
+        "description": "**Required auth:** None for first bootstrap (no superadmin exists). After bootstrap: superadmin access JWT via `Authorization: Bearer <access>`.\n\nPublic when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1748,7 +1767,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/accounts/superadmin/admin/{userId}/update/": {
@@ -1879,7 +1899,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/superadmin/employee/{userId}/update/": {
@@ -2010,7 +2031,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/superadmin/client/{userId}/update/": {
@@ -2141,7 +2163,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/superadmin/user/{userId}/": {
@@ -2268,7 +2291,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/admins/": {
@@ -2371,7 +2395,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
       }
     },
     "/api/accounts/employees/": {
@@ -2474,7 +2499,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/accounts/clients/": {
@@ -2584,7 +2610,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/customers/register/": {
@@ -2727,7 +2754,9 @@
               }
             }
           }
-        }
+        },
+        "security": [],
+        "description": "**Required auth:** None"
       }
     },
     "/api/customers/create/": {
@@ -2859,7 +2888,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/services/list/": {
@@ -2903,7 +2933,9 @@
               }
             }
           }
-        }
+        },
+        "security": [],
+        "description": "**Required auth:** None"
       }
     },
     "/api/services/create/": {
@@ -3004,7 +3036,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/services/{id}/": {
@@ -3125,7 +3158,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/services/{id}/update/": {
@@ -3256,7 +3290,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     },
     "/api/orders/list/": {
@@ -3435,7 +3470,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user (results scoped by role)."
       }
     },
     "/api/orders/create/": {
@@ -3579,7 +3615,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/orders/{id}/": {
@@ -3715,7 +3752,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user (access scoped by role)."
       }
     },
     "/api/orders/{id}/update/": {
@@ -3854,7 +3892,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
       }
     },
     "/api/payments/initialize/": {
@@ -4026,7 +4065,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client."
       }
     },
     "/api/payments/callback/": {
@@ -4071,7 +4111,9 @@
               }
             }
           }
-        }
+        },
+        "security": [],
+        "description": "**Required auth:** None (Paystack redirect callback)"
       }
     },
     "/api/ussd/payments/initialize/": {
@@ -4080,7 +4122,7 @@
           "Ussd"
         ],
         "summary": "Initialize Paystack payment via USSD (no auth)",
-        "description": "Identifies the customer by phone number. No JWT required.",
+        "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4181,7 +4223,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/ussd/callback/": {
@@ -4190,7 +4233,7 @@
           "Ussd"
         ],
         "summary": "Moolre USSD callback",
-        "description": "Interactive USSD menu handler. Configure this URL in the Moolre dashboard.",
+        "description": "**Required auth:** None (Moolre USSD webhook)\n\nInteractive USSD menu handler. Configure this URL in the Moolre dashboard.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4223,7 +4266,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/dashboard/metrics/": {
@@ -4282,7 +4326,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user (metrics vary by role)."
       }
     },
     "/api/dashboard/revenue-report/": {
@@ -4465,7 +4510,8 @@
               }
             }
           }
-        }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
     }
   },
@@ -4475,19 +4521,19 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "Access token from login response"
+        "description": "Access JWT from `POST /api/accounts/login/` response field `access`. Send as `Authorization: Bearer <access>`. Use Swagger **Authorize** to paste the token."
       },
       "csrfHeader": {
         "type": "apiKey",
         "in": "header",
         "name": "X-CSRF-Token",
-        "description": "Must match CSRF cookie from GET /api/accounts/csrf/"
+        "description": "Header `X-CSRF-Token` must match the `csrf_token` cookie from `GET /api/accounts/csrf/`. Required for login, logout, and token refresh. Swagger UI auto-injects on those routes."
       },
       "refreshCookie": {
         "type": "apiKey",
         "in": "cookie",
         "name": "refresh_token",
-        "description": "HttpOnly refresh token cookie (name configurable via REFRESH_COOKIE_NAME)"
+        "description": "HttpOnly refresh token cookie set on login (`refresh_token` by default, configurable via REFRESH_COOKIE_NAME). Required for `POST /api/accounts/token/refresh/` together with `X-CSRF-Token`."
       }
     },
     "parameters": {

@@ -117,10 +117,196 @@ const EXAMPLE_ORDER = {
   ],
 };
 
+const PUBLIC = [];
 const bearer = [{ bearerAuth: [] }];
 const csrfOnly = [{ csrfHeader: [] }];
 const bearerCsrf = [{ bearerAuth: [] }, { csrfHeader: [] }];
 const refreshCsrf = [{ refreshCookie: [] }, { csrfHeader: [] }];
+
+const AUTH_BEARER = 'Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**.';
+
+const AUTH_META = {
+  'GET /health': { security: PUBLIC, requiredAuth: 'None' },
+  'GET /api/accounts/csrf/': { security: PUBLIC, requiredAuth: 'None' },
+  'POST /api/accounts/login/': {
+    security: csrfOnly,
+    requiredAuth: 'CSRF only — `csrf_token` cookie + `X-CSRF-Token` header (no JWT). Swagger auto-injects.',
+  },
+  'POST /api/accounts/logout/': {
+    security: bearerCsrf,
+    requiredAuth: `${AUTH_BEARER} Plus CSRF — \`X-CSRF-Token\` header matching \`csrf_token\` cookie.`,
+  },
+  'POST /api/accounts/token/refresh/': {
+    security: refreshCsrf,
+    requiredAuth: 'Refresh cookie + CSRF — `refresh_token` HttpOnly cookie and `X-CSRF-Token` header (no Bearer).',
+  },
+  'POST /api/accounts/token/verify/': {
+    security: PUBLIC,
+    requiredAuth: 'None — JWT passed in request body field `token`, not `Authorization` header.',
+  },
+  'POST /api/accounts/change-password/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user.`,
+  },
+  'PUT /api/accounts/change-password/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user.`,
+  },
+  'GET /api/accounts/user/profile/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user.`,
+  },
+  'PATCH /api/accounts/client/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: client.`,
+  },
+  'POST /api/accounts/admin/create/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'PATCH /api/accounts/admin/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'PATCH /api/accounts/admin/employee/{userId}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin.`,
+  },
+  'POST /api/accounts/employee/create/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'PATCH /api/accounts/employee/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: employee.`,
+  },
+  'PATCH /api/accounts/staff/client/{userId}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'GET /api/accounts/staff/user/{userId}/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'POST /api/accounts/superadmin/create/': {
+    security: PUBLIC,
+    requiredAuth:
+      'None for first bootstrap (no superadmin exists). After bootstrap: superadmin access JWT via `Authorization: Bearer <access>`.',
+  },
+  'PATCH /api/accounts/superadmin/admin/{userId}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'PATCH /api/accounts/superadmin/employee/{userId}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'PATCH /api/accounts/superadmin/client/{userId}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'GET /api/accounts/superadmin/user/{userId}/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'GET /api/accounts/admins/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'GET /api/accounts/employees/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'GET /api/accounts/clients/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'POST /api/customers/register/': { security: PUBLIC, requiredAuth: 'None' },
+  'POST /api/customers/create/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'GET /api/services/list/': { security: PUBLIC, requiredAuth: 'None' },
+  'POST /api/services/create/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'GET /api/services/{id}/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'PATCH /api/services/{id}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'GET /api/orders/list/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user (results scoped by role).`,
+  },
+  'POST /api/orders/create/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'GET /api/orders/{id}/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user (access scoped by role).`,
+  },
+  'PUT /api/orders/{id}/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
+  'POST /api/payments/initialize/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: client.`,
+  },
+  'GET /api/payments/callback/': { security: PUBLIC, requiredAuth: 'None (Paystack redirect callback)' },
+  'POST /api/ussd/payments/initialize/': { security: PUBLIC, requiredAuth: 'None (customer identified by phone_number)' },
+  'POST /api/ussd/callback/': { security: PUBLIC, requiredAuth: 'None (Moolre USSD webhook)' },
+  'GET /api/dashboard/metrics/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: any authenticated user (metrics vary by role).`,
+  },
+  'GET /api/dashboard/revenue-report/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+};
+
+function authOpKey(path, method) {
+  return `${method.toUpperCase()} ${path}`;
+}
+
+function applyAuthDocumentation(openApiSpec) {
+  const schemes = openApiSpec.components.securitySchemes;
+  schemes.bearerAuth.description =
+    'Access JWT from `POST /api/accounts/login/` response field `access`. ' +
+    'Send as `Authorization: Bearer <access>`. Use Swagger **Authorize** to paste the token.';
+  schemes.csrfHeader.description =
+    'Header `X-CSRF-Token` must match the `csrf_token` cookie from `GET /api/accounts/csrf/`. ' +
+    'Required for login, logout, and token refresh. Swagger UI auto-injects on those routes.';
+  schemes.refreshCookie.description =
+    'HttpOnly refresh token cookie set on login (`refresh_token` by default, configurable via REFRESH_COOKIE_NAME). ' +
+    'Required for `POST /api/accounts/token/refresh/` together with `X-CSRF-Token`.';
+
+  for (const [path, pathItem] of Object.entries(openApiSpec.paths)) {
+    for (const [method, operation] of Object.entries(pathItem)) {
+      if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue;
+
+      const key = authOpKey(path, method);
+      const meta = AUTH_META[key];
+      if (!meta) continue;
+
+      operation.security = meta.security;
+
+      const authLine = `**Required auth:** ${meta.requiredAuth}`;
+      if (operation.description && !operation.description.includes('**Required auth:**')) {
+        operation.description = `${authLine}\n\n${operation.description}`;
+      } else if (!operation.description) {
+        operation.description = authLine;
+      }
+    }
+  }
+}
 
 const spec = {
   openapi: '3.0.3',
@@ -137,10 +323,25 @@ const spec = {
       '**Error format**: `{ "error_code": "CODE", "message": "Human-readable message", "status_code": 400 }`',
       '',
       '**Authentication**',
-      '1. `GET /api/accounts/csrf/` — receive `csrf_token` (also set as cookie).',
-      '2. For login/logout/refresh: send `X-CSRF-Token` header matching the cookie.',
-      '3. Login returns `access` JWT; use `Authorization: Bearer <access>`.',
-      '4. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).',
+      '1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.',
+      '2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.',
+      '3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).',
+      '4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.',
+      '5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).',
+      '',
+      '**Authentication matrix**',
+      '| Auth type | Header / cookie | Endpoints |',
+      '|-----------|-----------------|-----------|',
+      '| None | — | health, csrf, register, services list, payment callback, USSD, token verify (body) |',
+      '| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |',
+      '| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |',
+      '| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |',
+      '| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |',
+      '',
+      '**Notes**',
+      '- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.',
+      '- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.',
+      '- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.',
       '',
       '**Roles**: `superadmin`, `admin`, `employee`, `client`.',
     ].join('\n'),
@@ -173,7 +374,10 @@ const spec = {
       get: {
         tags: ['Accounts'],
         summary: 'Issue CSRF token',
-        description: 'Sets CSRF cookie and returns token for mutating auth requests.',
+        description:
+          'Sets the `csrf_token` cookie and returns the same token in the JSON body. ' +
+          'The body value is for API clients (Postman, scripts); browsers also need the cookie. ' +
+          'For login/logout/refresh, send `X-CSRF-Token` matching the cookie (Swagger UI does this automatically).',
         responses: {
           200: jsonResponse('CSRF token issued', '#/components/schemas/CsrfResponse', {
             csrf_token: 'csrf-token-example',
@@ -185,6 +389,9 @@ const spec = {
       post: {
         tags: ['Accounts'],
         summary: 'Login',
+        description:
+          'Requires double-submit CSRF: `csrf_token` cookie (from GET /api/accounts/csrf/) AND `X-CSRF-Token` header with the same value. ' +
+          'Swagger UI auto-injects CSRF; in Postman, call CSRF first, then set the header manually.',
         security: csrfOnly,
         requestBody: {
           required: true,
@@ -920,7 +1127,8 @@ const spec = {
         type: 'apiKey',
         in: 'header',
         name: 'X-CSRF-Token',
-        description: 'Must match CSRF cookie from GET /api/accounts/csrf/',
+        description:
+          'Must match the `csrf_token` cookie from GET /api/accounts/csrf/. Swagger UI sets this automatically.',
       },
       refreshCookie: {
         type: 'apiKey',
@@ -1907,6 +2115,7 @@ function applyDocumentation(openApiSpec) {
   }
 }
 
+applyAuthDocumentation(spec);
 applyDocumentation(spec);
 
 const outPath = path.join(__dirname, '..', 'docs', 'openapi.json');

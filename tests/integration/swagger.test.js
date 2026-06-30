@@ -3,7 +3,7 @@ const path = require('path');
 const request = require('supertest');
 const SwaggerParser = require('swagger-parser');
 const app = require('../../app');
-const { loadOpenApiSpec } = require('../../config/swagger');
+const { loadOpenApiSpec, getSwaggerUiOptions, isCsrfProtectedRequest } = require('../../config/swagger');
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
 
@@ -30,6 +30,41 @@ function hasErrorExamples(openApiSpec, path, method, status) {
   const content = responseJsonContent(openApiSpec, path, method, status);
   return Boolean(content?.examples && Object.keys(content.examples).length > 0);
 }
+
+function iterateOperations(openApiSpec, callback) {
+  for (const [path, pathItem] of Object.entries(openApiSpec.paths || {})) {
+    for (const method of HTTP_METHODS) {
+      if (pathItem[method]) callback(path, method, pathItem[method]);
+    }
+  }
+}
+
+function securitySchemeNames(operation) {
+  return (operation.security || []).flatMap((req) => Object.keys(req));
+}
+
+const PUBLIC_OPENAPI_ROUTES = [
+  { method: 'get', path: '/health' },
+  { method: 'get', path: '/api/accounts/csrf/' },
+  { method: 'post', path: '/api/accounts/token/verify/' },
+  { method: 'post', path: '/api/customers/register/' },
+  { method: 'get', path: '/api/services/list/' },
+  { method: 'get', path: '/api/payments/callback/' },
+  { method: 'post', path: '/api/ussd/payments/initialize/' },
+  { method: 'post', path: '/api/ussd/callback/' },
+  { method: 'post', path: '/api/accounts/superadmin/create/' },
+];
+
+const PROTECTED_OPENAPI_ROUTES = [
+  { method: 'post', path: '/api/accounts/change-password/' },
+  { method: 'put', path: '/api/accounts/change-password/' },
+  { method: 'get', path: '/api/accounts/user/profile/' },
+  { method: 'patch', path: '/api/accounts/client/update/' },
+  { method: 'post', path: '/api/accounts/admin/create/' },
+  { method: 'get', path: '/api/orders/list/' },
+  { method: 'post', path: '/api/payments/initialize/' },
+  { method: 'get', path: '/api/dashboard/revenue-report/' },
+];
 
 describe('Swagger API documentation', () => {
   let spec;
@@ -83,6 +118,48 @@ describe('Swagger API documentation', () => {
       const health = responseJsonContent(spec, '/health', 'get', 200);
       expect(health.examples.degraded.value.status).toBe('degraded');
     });
+
+    it('documents bearerAuth scheme with access JWT instructions', () => {
+      const bearer = spec.components.securitySchemes.bearerAuth;
+      expect(bearer.description).toMatch(/access/i);
+      expect(bearer.description).toMatch(/Authorization: Bearer/i);
+      expect(spec.components.securitySchemes.csrfHeader.description).toMatch(/X-CSRF-Token/i);
+      expect(spec.components.securitySchemes.refreshCookie.description).toMatch(/refresh_token/i);
+    });
+
+    it('includes authentication matrix in API description', () => {
+      expect(spec.info.description).toMatch(/Authentication matrix/i);
+      expect(spec.info.description).toMatch(/token\/verify/);
+    });
+
+    it('marks public routes with empty security', () => {
+      PUBLIC_OPENAPI_ROUTES.forEach(({ method, path }) => {
+        const op = spec.paths[path][method];
+        expect(op.security).toEqual([]);
+      });
+    });
+
+    it('marks JWT-protected routes with bearerAuth', () => {
+      PROTECTED_OPENAPI_ROUTES.forEach(({ method, path }) => {
+        expect(securitySchemeNames(spec.paths[path][method])).toContain('bearerAuth');
+      });
+    });
+
+    it('documents CSRF-only login, bearer+CSRF logout, cookie+CSRF refresh', () => {
+      expect(securitySchemeNames(spec.paths['/api/accounts/login/'].post)).toEqual(['csrfHeader']);
+      expect(securitySchemeNames(spec.paths['/api/accounts/logout/'].post)).toEqual(
+        expect.arrayContaining(['bearerAuth', 'csrfHeader'])
+      );
+      expect(securitySchemeNames(spec.paths['/api/accounts/token/refresh/'].post)).toEqual(
+        expect.arrayContaining(['refreshCookie', 'csrfHeader'])
+      );
+    });
+
+    it('includes Required auth on every operation', () => {
+      iterateOperations(spec, (path, method, operation) => {
+        expect(operation.description).toMatch(/\*\*Required auth:\*\*/);
+      });
+    });
   });
 
   describe('Swagger UI mount (test env)', () => {
@@ -132,6 +209,26 @@ describe('Swagger API documentation', () => {
         },
       });
       expect(loaded.servers[0].url).toBe('https://docs.example.com');
+    });
+
+    it('serves Swagger UI init with credentialed CSRF support', async () => {
+      const res = await request(app).get('/api/docs/swagger-ui-init.js');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/javascript/);
+      expect(res.text).toMatch(/"withCredentials":\s*true/);
+      expect(res.text).toMatch(/"persistAuthorization":\s*true/);
+      expect(res.text).toMatch(/X-CSRF-Token/);
+      expect(res.text).toMatch(/\/api\/accounts\/csrf\//);
+      expect(res.text).toMatch(/csrfSwaggerRequestInterceptor/);
+    });
+
+    it('getSwaggerUiOptions enables credentials and CSRF interceptor', () => {
+      const options = getSwaggerUiOptions();
+      expect(options.withCredentials).toBe(true);
+      expect(options.persistAuthorization).toBe(true);
+      expect(typeof options.requestInterceptor).toBe('function');
+      expect(isCsrfProtectedRequest('https://api.example.com/api/accounts/login/')).toBe(true);
+      expect(isCsrfProtectedRequest('https://api.example.com/api/accounts/user/profile/')).toBe(false);
     });
   });
 
