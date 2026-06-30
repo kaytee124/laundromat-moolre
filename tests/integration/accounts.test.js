@@ -159,6 +159,25 @@ describe('Accounts API', () => {
     });
   });
 
+  describe('PATCH /api/accounts/superadmin/update/', () => {
+    it('superadmin updates self', async () => {
+      const res = await request(app)
+        .patch('/api/accounts/superadmin/update/')
+        .set(tokens.superadmin.headers)
+        .send({ first_name: 'SuperUpdated' });
+      expect(res.status).toBe(200);
+      expect(res.body.user.first_name).toBe('SuperUpdated');
+    });
+
+    it('denies non-superadmin from superadmin self-update', async () => {
+      const res = await request(app)
+        .patch('/api/accounts/superadmin/update/')
+        .set(tokens.admin.headers)
+        .send({ first_name: 'Nope' });
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('PATCH /api/accounts/admin/employee/:userId/update/', () => {
     it('admin updates employee', async () => {
       const res = await request(app)
@@ -279,6 +298,22 @@ describe('Accounts API', () => {
         .set(tokens.superadmin.headers);
       expect(res.status).toBe(200);
       expect(res.body.results).toBeDefined();
+    });
+
+    it('superadmin lists superadmins', async () => {
+      const res = await request(app)
+        .get('/api/accounts/superadmins/')
+        .set(tokens.superadmin.headers);
+      expect(res.status).toBe(200);
+      expect(res.body.results).toBeDefined();
+      expect(res.body.results.some((u) => u.id === ctx.superadmin.id)).toBe(true);
+    });
+
+    it('denies non-superadmin from listing superadmins', async () => {
+      const res = await request(app)
+        .get('/api/accounts/superadmins/')
+        .set(tokens.admin.headers);
+      expect(res.status).toBe(403);
     });
 
     it('admin lists employees', async () => {

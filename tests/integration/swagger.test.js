@@ -76,13 +76,15 @@ describe('Swagger API documentation', () => {
   });
 
   describe('OpenAPI spec', () => {
-    it('documents at least 41 operations', () => {
-      expect(countOperations(spec)).toBeGreaterThanOrEqual(41);
+    it('documents at least 43 operations', () => {
+      expect(countOperations(spec)).toBeGreaterThanOrEqual(43);
     });
 
     it('includes critical API paths', () => {
       expect(spec.paths['/health']).toBeDefined();
       expect(spec.paths['/api/accounts/login/']).toBeDefined();
+      expect(spec.paths['/api/accounts/superadmins/']).toBeDefined();
+      expect(spec.paths['/api/accounts/superadmin/update/']).toBeDefined();
       expect(spec.paths['/api/orders/list/']).toBeDefined();
       expect(spec.paths['/api/dashboard/metrics/']).toBeDefined();
     });
@@ -143,6 +145,10 @@ describe('Swagger API documentation', () => {
       PROTECTED_OPENAPI_ROUTES.forEach(({ method, path }) => {
         expect(securitySchemeNames(spec.paths[path][method])).toContain('bearerAuth');
       });
+      expect(securitySchemeNames(spec.paths['/api/accounts/superadmins/'].get)).toContain('bearerAuth');
+      expect(securitySchemeNames(spec.paths['/api/accounts/superadmin/update/'].patch)).toContain('bearerAuth');
+      expect(spec.paths['/api/accounts/superadmins/'].get.description).toMatch(/Role: superadmin/);
+      expect(spec.paths['/api/accounts/superadmin/update/'].patch.description).toMatch(/Role: superadmin/);
     });
 
     it('documents CSRF-only login, bearer+CSRF logout, cookie+CSRF refresh', () => {

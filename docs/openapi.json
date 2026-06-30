@@ -1771,6 +1771,107 @@
         "security": []
       }
     },
+    "/api/accounts/superadmin/update/": {
+      "patch": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Superadmin updates own profile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffSelfUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileUpdateResponse"
+                },
+                "example": {
+                  "message": "Profile updated successfully",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "email": "client1@example.com",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
+      }
+    },
     "/api/accounts/superadmin/admin/{userId}/update/": {
       "patch": {
         "tags": [
@@ -2320,6 +2421,110 @@
         "responses": {
           "200": {
             "description": "Paginated admin list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedUserList"
+                },
+                "example": {
+                  "count": 1,
+                  "page": 1,
+                  "page_size": 20,
+                  "total_pages": 1,
+                  "results": [
+                    {
+                      "id": 2,
+                      "first_name": "Admin",
+                      "last_name": "User",
+                      "email": "admin@example.com",
+                      "status": "active"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
+      }
+    },
+    "/api/accounts/superadmins/": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "List superadmins (superadmin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          },
+          {
+            "$ref": "#/components/parameters/search"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated superadmin list",
             "content": {
               "application/json": {
                 "schema": {

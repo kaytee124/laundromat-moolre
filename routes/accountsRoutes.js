@@ -38,12 +38,14 @@ router.patch('/staff/client/:userId/update/', authenticate, isStaff, asyncHandle
 router.get('/staff/user/:userId/', authenticate, isStaff, asyncHandler(accountsController.getStaffUserById));
 
 router.post('/superadmin/create/', requireSuperadminCreationAccess, asyncHandler(accountsController.createSuperadmin));
+router.patch('/superadmin/update/', authenticate, isSuperadmin, asyncHandler(accountsController.updateSuperadminSelf));
 router.patch('/superadmin/admin/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateAdmin));
 router.patch('/superadmin/employee/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateEmployee));
 router.patch('/superadmin/client/:userId/update/', authenticate, isSuperadmin, asyncHandler(accountsController.superadminUpdateClient));
 router.get('/superadmin/user/:userId/', authenticate, isSuperadmin, asyncHandler(accountsController.getSuperadminUserById));
 
 router.get('/admins/', authenticate, isSuperadmin, asyncHandler(accountsController.getAllAdmins));
+router.get('/superadmins/', authenticate, isSuperadmin, asyncHandler(accountsController.getAllSuperadmins));
 router.get('/employees/', authenticate, isAdminOrSuperadmin, asyncHandler(accountsController.getAllEmployees));
 router.get('/clients/', authenticate, isStaff, asyncHandler(accountsController.getAllClients));
 

@@ -30,6 +30,8 @@
     { "id": "accounts-superadmin-client-update", "method": "PATCH", "path": "/api/accounts/superadmin/client/{{client.userId}}/update/", "auth": "superadmin", "csrf": true, "body": { "first_name": "Bench" } },
     { "id": "accounts-superadmin-user", "method": "GET", "path": "/api/accounts/superadmin/user/{{admin.userId}}/", "auth": "superadmin" },
     { "id": "accounts-admins", "method": "GET", "path": "/api/accounts/admins/", "auth": "superadmin" },
+    { "id": "accounts-superadmins", "method": "GET", "path": "/api/accounts/superadmins/", "auth": "superadmin" },
+    { "id": "accounts-superadmin-update", "method": "PATCH", "path": "/api/accounts/superadmin/update/", "auth": "superadmin", "body": { "first_name": "Bench" } },
     { "id": "accounts-employees", "method": "GET", "path": "/api/accounts/employees/", "auth": "admin" },
     { "id": "accounts-clients", "method": "GET", "path": "/api/accounts/clients/", "auth": "admin" },
     { "id": "customers-register", "method": "POST", "path": "/api/customers/register/", "auth": "none", "csrf": true, "write": true, "skipLoad": true },

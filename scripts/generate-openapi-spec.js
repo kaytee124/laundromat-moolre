@@ -209,7 +209,15 @@ const AUTH_META = {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
   },
+  'PATCH /api/accounts/superadmin/update/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
   'GET /api/accounts/admins/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
+  },
+  'GET /api/accounts/superadmins/': {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: superadmin.`,
   },
@@ -675,6 +683,24 @@ const spec = {
         },
       },
     },
+    '/api/accounts/superadmin/update/': {
+      patch: {
+        tags: ['Accounts'],
+        summary: 'Superadmin updates own profile',
+        security: bearer,
+        requestBody: {
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffSelfUpdateRequest' } } },
+        },
+        responses: {
+          200: {
+            description: 'Updated',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/ProfileUpdateResponse' } } },
+          },
+          401: stdErrors[401],
+          403: stdErrors[403],
+        },
+      },
+    },
     '/api/accounts/superadmin/admin/{userId}/update/': {
       patch: {
         tags: ['Accounts'],
@@ -765,6 +791,26 @@ const spec = {
         responses: {
           200: {
             description: 'Paginated admin list',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PaginatedUserList' } } },
+          },
+          401: stdErrors[401],
+          403: stdErrors[403],
+        },
+      },
+    },
+    '/api/accounts/superadmins/': {
+      get: {
+        tags: ['Accounts'],
+        summary: 'List superadmins (superadmin)',
+        security: bearer,
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/pageSize' },
+          { $ref: '#/components/parameters/search' },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated superadmin list',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/PaginatedUserList' } } },
           },
           401: stdErrors[401],
@@ -1945,6 +1991,9 @@ function applyDocumentation(openApiSpec) {
         note: 'User should change password on first login',
       },
     },
+    [opKey('/api/accounts/superadmin/update/', 'patch')]: {
+      200: schemas.ProfileUpdateResponse.example,
+    },
     [opKey('/api/accounts/superadmin/admin/{userId}/update/', 'patch')]: {
       200: { message: 'Admin updated successfully', user: { ...EXAMPLE_USER, role: 'admin', is_staff: true } },
     },
@@ -1961,6 +2010,7 @@ function applyDocumentation(openApiSpec) {
       },
     },
     [opKey('/api/accounts/admins/', 'get')]: { 200: EXAMPLE_PAGINATED_USERS },
+    [opKey('/api/accounts/superadmins/', 'get')]: { 200: EXAMPLE_PAGINATED_USERS },
     [opKey('/api/accounts/employees/', 'get')]: { 200: EXAMPLE_PAGINATED_USERS },
     [opKey('/api/accounts/clients/', 'get')]: { 200: EXAMPLE_PAGINATED_CLIENTS },
     [opKey('/api/customers/register/', 'post')]: { 201: schemas.CustomerRegisterResponse.example },

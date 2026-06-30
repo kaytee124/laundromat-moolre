@@ -169,6 +169,20 @@ async function getAllClients(req, res) {
   res.json(data);
 }
 
+async function updateSuperadminSelf(req, res) {
+  const user = await userService.updateSelfProfile(
+    req.user,
+    req.body,
+    ['username', 'email', 'first_name', 'last_name']
+  );
+  res.json({ message: 'Profile updated successfully', user });
+}
+
+async function getAllSuperadmins(req, res) {
+  const data = await userService.listUsers('superadmin', req.query, userService.formatUserListItem);
+  res.json(data);
+}
+
 module.exports = {
   login,
   logout,
@@ -191,4 +205,6 @@ module.exports = {
   getAllAdmins,
   getAllEmployees,
   getAllClients,
+  updateSuperadminSelf,
+  getAllSuperadmins,
 };

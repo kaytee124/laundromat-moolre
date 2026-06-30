@@ -111,6 +111,9 @@ async function getUserByIdForSuperadmin(userId) {
 }
 
 async function updateSelfProfile(user, data, allowedFields) {
+  const dbUser = typeof user.save === 'function' ? user : await User.findByPk(user.id);
+  if (!dbUser) throw new AppError('NOT_FOUND', 'User not found', 404);
+
   const updates = {};
   for (const field of allowedFields) {
     if (data[field] !== undefined) updates[field] = data[field];
@@ -118,23 +121,23 @@ async function updateSelfProfile(user, data, allowedFields) {
 
   if (updates.username) {
     const exists = await User.findOne({
-      where: { username: updates.username, id: { [Op.ne]: user.id } },
+      where: { username: updates.username, id: { [Op.ne]: dbUser.id } },
     });
     if (exists) throw new AppError('VALIDATION_ERROR', 'Username already exists', 400);
   }
 
   if (updates.email) {
     const exists = await User.findOne({
-      where: { email: updates.email, id: { [Op.ne]: user.id } },
+      where: { email: updates.email, id: { [Op.ne]: dbUser.id } },
     });
     if (exists) throw new AppError('VALIDATION_ERROR', 'Email already exists', 400);
   }
 
-  Object.assign(user, updates);
-  user.updated_at = new Date();
-  user.updated_by = user.id;
-  await user.save();
-  return formatUser(user);
+  Object.assign(dbUser, updates);
+  dbUser.updated_at = new Date();
+  dbUser.updated_by = dbUser.id;
+  await dbUser.save();
+  return formatUser(dbUser);
 }
 
 async function updateClientSelf(user, data) {
