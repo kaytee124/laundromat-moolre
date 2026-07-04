@@ -1,4 +1,5 @@
 module.exports = {
+  ORDER_IN_PROGRESS_PAYMENT_RATIO: 0.3,
   DEFAULT_CUSTOMER_PASSWORD: 'ChangeMe123!',
   ROLES: ['superadmin', 'admin', 'employee', 'client'],
   ORDER_STATUSES: ['pending', 'in_progress', 'ready', 'completed', 'cancelled'],

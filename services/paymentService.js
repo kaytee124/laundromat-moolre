@@ -6,6 +6,7 @@ const { AppError } = require('../utils/errors');
 const moolreService = require('./moolreService');
 const moolreConfig = require('../config/moolre');
 const orderService = require('./orderService');
+const orderNotificationService = require('./orderNotificationService');
 
 const POLLING_STATUS_MAP = {
   pending: 'PENDING',
@@ -58,6 +59,8 @@ async function applyMoolreStatus(payment, data, source) {
     return { changed: false, previousStatus, newStatus: payment.status };
   }
 
+  let orderStatusTransition = null;
+
   await sequelize.transaction(async (t) => {
     if (data.transactionid) payment.transaction_id = String(data.transactionid);
     if (data.thirdpartyref) payment.thirdparty_ref = String(data.thirdpartyref);
@@ -73,12 +76,35 @@ async function applyMoolreStatus(payment, data, source) {
       payment.status = 'paid';
       payment.paid_at = data.ts ? new Date(data.ts) : now;
       await payment.save({ transaction: t });
-      await orderService.syncOrderPaymentStatus(payment.order_id, t);
+      const syncResult = await orderService.syncOrderPaymentStatus(payment.order_id, t);
+      orderStatusTransition = {
+        orderId: payment.order_id,
+        previousStatus: syncResult.previousOrderStatus,
+        newStatus: syncResult.order.order_status,
+      };
     } else if (newStatus === 'failed') {
       payment.status = 'failed';
       await payment.save({ transaction: t });
     }
   });
+
+  if (orderStatusTransition && orderStatusTransition.previousStatus !== orderStatusTransition.newStatus) {
+    orderNotificationService
+      .notifyOrderStatusChange(
+        orderStatusTransition.orderId,
+        orderStatusTransition.previousStatus,
+        orderStatusTransition.newStatus
+      )
+      .catch((err) => {
+        console.error(
+          JSON.stringify({
+            event: 'order_notification_error',
+            orderId: orderStatusTransition.orderId,
+            error: err.message,
+          })
+        );
+      });
+  }
 
   await payment.reload();
   return {

@@ -23,6 +23,22 @@ Configure these in `.env` (not `.env.example`):
 
 Flow: client calls `POST /api/payments/initialize/` → redirect to `authorization_url` → Moolre webhook marks paid (or reconciliation cron after 2 minutes).
 
+Full frontend-to-SMS flow: [docs/payment-and-sms-flow.md](docs/payment-and-sms-flow.md).
+
+## SMS (Moolre)
+
+Configure in `.env`:
+
+- `MOOLRE_SMS_VAS_KEY` — `X-API-VASKEY` for `POST /open/sms/send`
+- `MOOLRE_SMS_SENDER_ID` — approved sender ID (max 11 characters)
+
+SMS is sent automatically when:
+
+- An order transitions to **in_progress** (staff update or ≥30% payment while order is still `pending`)
+- An order transitions to **completed** (staff update)
+
+Failures are logged only; they do not block order or payment updates.
+
 ## Testing
 
 ### Run everything (Jest + full benchmark)

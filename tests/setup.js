@@ -12,6 +12,8 @@ process.env.MOOLRE_WEBHOOK_URL =
   process.env.MOOLRE_WEBHOOK_URL || 'http://localhost:3000/api/payments/moolre/webhook/';
 delete process.env.MOOLRE_REDIRECT_URL;
 process.env.MOOLRE_WEBHOOK_SECRET = process.env.MOOLRE_WEBHOOK_SECRET || 'test-webhook-secret';
+process.env.MOOLRE_SMS_VAS_KEY = process.env.MOOLRE_SMS_VAS_KEY || 'test-sms-vas-key';
+process.env.MOOLRE_SMS_SENDER_ID = process.env.MOOLRE_SMS_SENDER_ID || 'TESTSENDER';
 
 const { sequelize } = require('../models');
 const { truncateAll, closeDb } = require('./helpers/db');

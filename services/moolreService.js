@@ -45,7 +45,39 @@ async function checkTransactionStatus({ idtype, id }) {
   return response.data;
 }
 
+async function sendSms({ recipient, message, ref }) {
+  const payload = {
+    type: 1,
+    senderid: moolreConfig.smsSenderId,
+    messages: [
+      {
+        recipient,
+        message,
+        ...(ref ? { ref } : {}),
+      },
+    ],
+  };
+
+  const response = await axios.post(`${moolreConfig.apiBase}/open/sms/send`, payload, {
+    headers: {
+      'X-API-VASKEY': moolreConfig.smsVasKey,
+      'Content-Type': 'application/json',
+    },
+    timeout: 30000,
+  });
+
+  const data = response.data;
+  if (Number(data.status) !== 1) {
+    const err = new Error(data.message || 'Moolre SMS send failed');
+    err.code = data.code;
+    err.response = data;
+    throw err;
+  }
+  return data;
+}
+
 module.exports = {
   generatePaymentLink,
   checkTransactionStatus,
+  sendSms,
 };

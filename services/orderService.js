@@ -13,6 +13,8 @@ const {
 const { AppError } = require('../utils/errors');
 const { formatOrder } = require('../utils/serializers');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
+const { ORDER_IN_PROGRESS_PAYMENT_RATIO } = require('../utils/constants');
+const orderNotificationService = require('./orderNotificationService');
 
 const ORDER_LIST_INCLUDES = [
   {
@@ -370,12 +372,27 @@ async function updateOrder(orderId, data, user) {
     }
   });
 
+  if (data.order_status && data.order_status !== oldStatus) {
+    orderNotificationService
+      .notifyOrderStatusChange(order.id, oldStatus, data.order_status)
+      .catch((err) => {
+        console.error(
+          JSON.stringify({
+            event: 'order_notification_error',
+            orderId: order.id,
+            error: err.message,
+          })
+        );
+      });
+  }
+
   const updated = await loadOrderDetail(order.id);
   return formatOrder(updated);
 }
 
 async function syncOrderPaymentStatus(orderId, transaction) {
   const order = await Order.findByPk(orderId, { transaction });
+  const previousOrderStatus = order.order_status;
   const result = await Payment.findOne({
     where: { order_id: orderId, status: 'paid' },
     attributes: [[fn('SUM', col('amount')), 'total_paid']],
@@ -394,9 +411,31 @@ async function syncOrderPaymentStatus(orderId, transaction) {
     order.payment_status = 'pending';
   }
 
+  const threshold = parseFloat(order.total_amount) * ORDER_IN_PROGRESS_PAYMENT_RATIO;
+  const shouldAutoInProgress =
+    previousOrderStatus === 'pending' && totalPaid >= threshold;
+
+  if (shouldAutoInProgress) {
+    order.order_status = 'in_progress';
+  }
+
   order.updated_at = new Date();
   await order.save({ transaction });
-  return order;
+
+  if (shouldAutoInProgress) {
+    await OrderStatusHistory.create(
+      {
+        order_id: order.id,
+        old_status: previousOrderStatus,
+        new_status: 'in_progress',
+        changed_by: null,
+        changed_at: new Date(),
+      },
+      { transaction }
+    );
+  }
+
+  return { order, previousOrderStatus };
 }
 
 module.exports = {

@@ -440,6 +440,16 @@ const spec = {
       '- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.',
       '- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.',
       '',
+      '**Order SMS notifications (side effects)**',
+      '- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order status changes.',
+      '- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).',
+      '- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).',
+      '- Triggers:',
+      '  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`',
+      '  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`',
+      '- SMS failures are logged only; they do **not** fail payment or order API responses.',
+      '- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.',
+      '',
       '**Roles**: `superadmin`, `admin`, `employee`, `client`.',
     ].join('\n'),
   },
@@ -1123,6 +1133,10 @@ const spec = {
       put: {
         tags: ['Orders'],
         summary: 'Update order',
+        description:
+          'Staff may update order fields including `order_status`. Setting `order_status` to `in_progress` or `completed` ' +
+          'triggers a customer SMS asynchronously (fire-and-forget; failures are logged only). ' +
+          'Payment-driven auto-`in_progress` at the 30% threshold is handled by the payment webhook path, not this endpoint.',
         security: bearer,
         parameters: [{ $ref: '#/components/parameters/id' }],
         requestBody: {
@@ -1144,7 +1158,10 @@ const spec = {
         tags: ['Payments'],
         summary: 'Initialize Moolre payment (client)',
         description:
-          'Creates a pending payment and returns `authorization_url` for redirect. Completion is confirmed via Moolre webhook or reconciliation — not via redirect.',
+          'Start of the client payment flow. Creates a pending payment and returns `authorization_url` for redirect. ' +
+          'Completion is confirmed via Moolre webhook or reconciliation — not via redirect. ' +
+          'When cumulative paid amount reaches ≥30% of order `total_amount` while the order is still `pending`, ' +
+          'the server auto-sets `order_status` to `in_progress` and sends a customer SMS (side effect).',
         security: bearer,
         requestBody: {
           required: true,
@@ -1168,7 +1185,10 @@ const spec = {
         tags: ['Payments'],
         summary: 'Moolre payment webhook',
         description:
-          'Webhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard.',
+          'Webhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). ' +
+          'Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard. ' +
+          'After a paid confirmation, updates order `amount_paid` / `payment_status`; if paid total ≥30% while order is `pending`, ' +
+          'auto-sets `in_progress` and sends customer SMS asynchronously.',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/MoolrePaymentWebhookRequest' } } },
@@ -1196,7 +1216,9 @@ const spec = {
       get: {
         tags: ['Payments'],
         summary: 'Poll payment status',
-        description: 'Returns DB status updated by webhook or reconciliation cron. Does not call Moolre directly.',
+        description:
+          'Frontend poll endpoint. Returns DB status updated by webhook or reconciliation cron. Does not call Moolre directly. ' +
+          'When status becomes `PAID`, the order may already be `in_progress` and the customer may have received an SMS (if ≥30% threshold was met).',
         parameters: [
           { name: 'externalref', in: 'path', required: true, schema: { type: 'string' } },
         ],
@@ -1213,7 +1235,9 @@ const spec = {
       post: {
         tags: ['Ussd'],
         summary: 'Initialize Moolre payment via USSD (no auth)',
-        description: 'Identifies the customer by phone number. No JWT required.',
+        description:
+          'Identifies the customer by phone number. No JWT required. Same Moolre payment and post-confirmation side effects as the client flow ' +
+          '(including 30% auto-`in_progress` and customer SMS after webhook confirms payment).',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/UssdPaymentInitializeRequest' } } },

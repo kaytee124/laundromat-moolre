@@ -19,7 +19,19 @@ function getMsisdnLookupVariants(msisdn) {
   return [...variants];
 }
 
+function formatSmsRecipient(msisdn) {
+  const digits = String(msisdn).replace(/\D/g, '');
+  if (digits.startsWith('233')) {
+    return digits;
+  }
+  if (digits.startsWith('0')) {
+    return `233${digits.slice(1)}`;
+  }
+  return `233${digits}`;
+}
+
 module.exports = {
   normalizeMsisdn,
   getMsisdnLookupVariants,
+  formatSmsRecipient,
 };

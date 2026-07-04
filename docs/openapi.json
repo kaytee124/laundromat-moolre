@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order status changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n- SMS failures are logged only; they do **not** fail payment or order API responses.\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -3967,6 +3967,7 @@
           "Orders"
         ],
         "summary": "Update order",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff may update order fields including `order_status`. Setting `order_status` to `in_progress` or `completed` triggers a customer SMS asynchronously (fire-and-forget; failures are logged only). Payment-driven auto-`in_progress` at the 30% threshold is handled by the payment webhook path, not this endpoint.",
         "security": [
           {
             "bearerAuth": []
@@ -4097,8 +4098,7 @@
               }
             }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
+        }
       }
     },
     "/api/payments/initialize/": {
@@ -4107,7 +4107,7 @@
           "Payments"
         ],
         "summary": "Initialize Moolre payment (client)",
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client.\n\nCreates a pending payment and returns `authorization_url` for redirect. Completion is confirmed via Moolre webhook or reconciliation — not via redirect.",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client.\n\nStart of the client payment flow. Creates a pending payment and returns `authorization_url` for redirect. Completion is confirmed via Moolre webhook or reconciliation — not via redirect. When cumulative paid amount reaches ≥30% of order `total_amount` while the order is still `pending`, the server auto-sets `order_status` to `in_progress` and sends a customer SMS (side effect).",
         "security": [
           {
             "bearerAuth": []
@@ -4279,7 +4279,7 @@
           "Payments"
         ],
         "summary": "Moolre payment webhook",
-        "description": "**Required auth:** None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)\n\nWebhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard.",
+        "description": "**Required auth:** None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)\n\nWebhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard. After a paid confirmation, updates order `amount_paid` / `payment_status`; if paid total ≥30% while order is `pending`, auto-sets `in_progress` and sends customer SMS asynchronously.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4396,7 +4396,7 @@
           "Payments"
         ],
         "summary": "Poll payment status",
-        "description": "**Required auth:** None (frontend polling by externalref)\n\nReturns DB status updated by webhook or reconciliation cron. Does not call Moolre directly.",
+        "description": "**Required auth:** None (frontend polling by externalref)\n\nFrontend poll endpoint. Returns DB status updated by webhook or reconciliation cron. Does not call Moolre directly. When status becomes `PAID`, the order may already be `in_progress` and the customer may have received an SMS (if ≥30% threshold was met).",
         "parameters": [
           {
             "name": "externalref",
@@ -4457,7 +4457,7 @@
           "Ussd"
         ],
         "summary": "Initialize Moolre payment via USSD (no auth)",
-        "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required.",
+        "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required. Same Moolre payment and post-confirmation side effects as the client flow (including 30% auto-`in_progress` and customer SMS after webhook confirms payment).",
         "requestBody": {
           "required": true,
           "content": {

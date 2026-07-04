@@ -155,6 +155,23 @@ describe('Swagger API documentation', () => {
       expect(spec.info.description).toMatch(/token\/verify/);
     });
 
+    it('documents order SMS side effects in API description', () => {
+      expect(spec.info.description).toMatch(/Order SMS notifications/i);
+      expect(spec.info.description).toMatch(/30%/);
+      expect(spec.info.description).toMatch(/payment-and-sms-flow\.md/);
+    });
+
+    it('documents SMS side effects on payment and order operations', () => {
+      expect(spec.paths['/api/payments/initialize/'].post.description).toMatch(/30%/i);
+      expect(spec.paths['/api/payments/initialize/'].post.description).toMatch(/SMS/i);
+      expect(spec.paths['/api/payments/moolre/webhook/'].post.description).toMatch(/in_progress/i);
+      expect(spec.paths['/api/payments/moolre/webhook/'].post.description).toMatch(/SMS/i);
+      expect(spec.paths['/api/payments/{externalref}/'].get.description).toMatch(/SMS/i);
+      expect(spec.paths['/api/orders/{id}/update/'].put.description).toMatch(/in_progress/i);
+      expect(spec.paths['/api/orders/{id}/update/'].put.description).toMatch(/completed/i);
+      expect(spec.paths['/api/ussd/payments/initialize/'].post.description).toMatch(/SMS/i);
+    });
+
     it('marks public routes with empty security', () => {
       PUBLIC_OPENAPI_ROUTES.forEach(({ method, path }) => {
         const op = spec.paths[path][method];
