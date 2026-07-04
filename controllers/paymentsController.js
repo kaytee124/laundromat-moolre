@@ -10,9 +10,14 @@ async function initialize(req, res) {
   });
 }
 
-async function callback(req, res) {
-  const result = await paymentService.handleCallback(req.query.reference);
-  res.json(result);
+async function moolreWebhook(req, res) {
+  await paymentService.handleMoolreWebhook(req.body);
+  res.status(200).json({ status: 'ok' });
 }
 
-module.exports = { initialize, callback };
+async function getStatus(req, res) {
+  const data = await paymentService.getPaymentStatus(req.params.externalref);
+  res.json(data);
+}
+
+module.exports = { initialize, moolreWebhook, getStatus };

@@ -1,7 +1,8 @@
 const { Sequelize } = require('sequelize');
 const config = require('../config/database');
+const { requireEnv } = require('../config/env');
 
-const env = process.env.NODE_ENV || 'development';
+const env = requireEnv('NODE_ENV');
 const dbConfig = config[env];
 
 const sequelize = new Sequelize(

@@ -27,7 +27,8 @@ const ERROR_CATALOG = {
   PHONE_EXISTS: { error_code: 'PHONE_EXISTS', message: 'Phone number already registered', status_code: 409 },
   INVALID_PASSWORD: { error_code: 'INVALID_PASSWORD', message: 'Password must be at least 8 characters', status_code: 422 },
   INVALID_DATE_FORMAT: { error_code: 'INVALID_DATE_FORMAT', message: 'Dates must be in YYYY-MM-DD format', status_code: 422 },
-  PAYSTACK_ERROR: { error_code: 'PAYSTACK_ERROR', message: 'Failed to initialize payment', status_code: 500 },
+  MOOLRE_ERROR: { error_code: 'MOOLRE_ERROR', message: 'Failed to initialize payment', status_code: 500 },
+  RATE_LIMIT_EXCEEDED: { error_code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests. Please try again later.', status_code: 429 },
   SERVER_ERROR: { error_code: 'SERVER_ERROR', message: 'An unexpected error occurred', status_code: 500 },
 };
 
@@ -37,8 +38,9 @@ const DEFAULT_ERROR_KEYS = {
   403: ['PERMISSION_DENIED', 'CSRF_VALIDATION_FAILED'],
   404: ['NOT_FOUND', 'ORDER_NOT_FOUND'],
   409: ['USERNAME_EXISTS', 'EMAIL_EXISTS'],
+  429: ['RATE_LIMIT_EXCEEDED'],
   422: ['VALIDATION_ERROR', 'INVALID_PASSWORD'],
-  500: ['PAYSTACK_ERROR', 'SERVER_ERROR'],
+  500: ['MOOLRE_ERROR', 'SERVER_ERROR'],
 };
 
 function errorResponse(status, description, ...keys) {
@@ -65,6 +67,7 @@ const stdErrors = {
   404: errorResponse(404, 'Not found'),
   409: errorResponse(409, 'Conflict'),
   422: errorResponse(422, 'Validation error'),
+  429: errorResponse(429, 'Too many requests', 'RATE_LIMIT_EXCEEDED'),
   500: errorResponse(500, 'Server error'),
 };
 
@@ -346,7 +349,14 @@ const AUTH_META = {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: client.`,
   },
-  'GET /api/payments/callback/': { security: PUBLIC, requiredAuth: 'None (Paystack redirect callback)' },
+  'POST /api/payments/moolre/webhook/': {
+    security: PUBLIC,
+    requiredAuth: 'None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)',
+  },
+  'GET /api/payments/{externalref}/': {
+    security: PUBLIC,
+    requiredAuth: 'None (frontend polling by externalref)',
+  },
   'POST /api/ussd/payments/initialize/': { security: PUBLIC, requiredAuth: 'None (customer identified by phone_number)' },
   'POST /api/ussd/callback/': { security: PUBLIC, requiredAuth: 'None (Moolre USSD webhook)' },
   'GET /api/dashboard/metrics/': {
@@ -419,7 +429,7 @@ const spec = {
       '**Authentication matrix**',
       '| Auth type | Header / cookie | Endpoints |',
       '|-----------|-----------------|-----------|',
-      '| None | — | health, csrf, register, services list, payment callback, USSD, token verify (body) |',
+      '| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |',
       '| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |',
       '| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |',
       '| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |',
@@ -1132,7 +1142,9 @@ const spec = {
     '/api/payments/initialize/': {
       post: {
         tags: ['Payments'],
-        summary: 'Initialize Paystack payment (client)',
+        summary: 'Initialize Moolre payment (client)',
+        description:
+          'Creates a pending payment and returns `authorization_url` for redirect. Completion is confirmed via Moolre webhook or reconciliation — not via redirect.',
         security: bearer,
         requestBody: {
           required: true,
@@ -1151,25 +1163,56 @@ const spec = {
         },
       },
     },
-    '/api/payments/callback/': {
+    '/api/payments/moolre/webhook/': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Moolre payment webhook',
+        description:
+          'Webhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard.',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/MoolrePaymentWebhookRequest' } } },
+        },
+        responses: {
+          200: {
+            description: 'Webhook accepted',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { status: { type: 'string', example: 'ok' } },
+                },
+              },
+            },
+          },
+          403: stdErrors[403],
+          404: stdErrors[404],
+          429: stdErrors[429],
+          500: stdErrors[500],
+        },
+      },
+    },
+    '/api/payments/{externalref}/': {
       get: {
         tags: ['Payments'],
-        summary: 'Paystack payment callback',
+        summary: 'Poll payment status',
+        description: 'Returns DB status updated by webhook or reconciliation cron. Does not call Moolre directly.',
         parameters: [
-          { name: 'reference', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'externalref', in: 'path', required: true, schema: { type: 'string' } },
         ],
         responses: {
           200: {
-            description: 'Verification result',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PaymentCallbackResponse' } } },
+            description: 'Payment status',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PaymentStatusResponse' } } },
           },
+          404: stdErrors[404],
         },
       },
     },
     '/api/ussd/payments/initialize/': {
       post: {
         tags: ['Ussd'],
-        summary: 'Initialize Paystack payment via USSD (no auth)',
+        summary: 'Initialize Moolre payment via USSD (no auth)',
         description: 'Identifies the customer by phone number. No JWT required.',
         requestBody: {
           required: true,
@@ -1793,8 +1836,7 @@ const spec = {
         type: 'object',
         properties: {
           authorization_url: { type: 'string', format: 'uri' },
-          access_code: { type: 'string' },
-          reference: { type: 'string' },
+          externalref: { type: 'string', description: 'Our idtype-1 reference for polling' },
           payment_id: { type: 'integer' },
         },
       },
@@ -1806,17 +1848,34 @@ const spec = {
           data: { $ref: '#/components/schemas/PaymentInitializeData' },
         },
       },
-      PaymentCallbackResponse: {
+      PaymentStatusResponse: {
         type: 'object',
         properties: {
-          success: { type: 'boolean' },
-          message: { type: 'string' },
-          order_id: { type: 'integer', description: 'Present on successful verification' },
+          status: { type: 'string', enum: ['PENDING', 'PAID', 'FAILED'] },
         },
-        example: {
-          success: true,
-          message: 'Payment processed successfully',
-          order_id: 1,
+        example: { status: 'PENDING' },
+      },
+      MoolrePaymentWebhookRequest: {
+        type: 'object',
+        properties: {
+          status: { type: 'integer' },
+          code: { type: 'string' },
+          message: { type: 'string' },
+          data: {
+            type: 'object',
+            properties: {
+              txstatus: { type: 'integer', description: '1=Successful, 0=Pending, 2=Failed' },
+              payer: { type: 'string' },
+              accountnumber: { type: 'string' },
+              amount: { type: 'string' },
+              value: { type: 'string' },
+              transactionid: { type: 'string' },
+              externalref: { type: 'string' },
+              thirdpartyref: { type: 'string' },
+              secret: { type: 'string' },
+              ts: { type: 'string' },
+            },
+          },
         },
       },
       DashboardRecentOrder: {
@@ -1964,9 +2023,8 @@ const EXAMPLE_PAYMENT_INIT = {
   status: 'success',
   message: 'Payment initialized successfully',
   data: {
-    authorization_url: 'https://checkout.paystack.com/example',
-    access_code: 'ACCESS_CODE',
-    reference: 'REF-123456',
+    authorization_url: 'https://pay.moolre.com/example',
+    externalref: 'PAY-1-ABC123456789',
     payment_id: 1,
   },
 };
@@ -2197,6 +2255,8 @@ function applyDocumentation(openApiSpec) {
       200: { status: 'success', message: 'Order updated successfully', data: EXAMPLE_ORDER },
     },
     [opKey('/api/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
+    [opKey('/api/payments/moolre/webhook/', 'post')]: { 200: { status: 'ok' } },
+    [opKey('/api/payments/{externalref}/', 'get')]: { 200: { status: 'PENDING' } },
     [opKey('/api/ussd/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
     [opKey('/api/ussd/callback/', 'post')]: {
       200: schemas.MoolreUssdCallbackResponse.example,
@@ -2230,29 +2290,17 @@ function applyDocumentation(openApiSpec) {
       400: errorResponse(400, 'Payment validation', 'ORDER_ALREADY_PAID', 'NO_AMOUNT_DUE', 'AMOUNT_EXCEEDS_BALANCE'),
       403: errorResponse(403, 'Client only', 'PERMISSION_DENIED'),
       404: errorResponse(404, 'Customer or order not found', 'CUSTOMER_NOT_FOUND', 'ORDER_NOT_FOUND'),
-      500: errorResponse(500, 'Paystack error', 'PAYSTACK_ERROR'),
+      500: errorResponse(500, 'Moolre error', 'MOOLRE_ERROR'),
     },
-    [opKey('/api/payments/callback/', 'get')]: {
-      200: {
-        description: 'Verification result (success or failure)',
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/PaymentCallbackResponse' },
-            examples: {
-              success: {
-                value: { success: true, message: 'Payment processed successfully', order_id: 1 },
-              },
-              failure: {
-                value: { success: false, message: 'Failed to verify payment' },
-              },
-            },
-          },
-        },
-      },
+    [opKey('/api/payments/moolre/webhook/', 'post')]: {
+      403: errorResponse(403, 'Invalid webhook secret', 'PERMISSION_DENIED'),
+      404: errorResponse(404, 'Payment not found', 'NOT_FOUND'),
+      429: errorResponse(429, 'Rate limit exceeded', 'RATE_LIMIT_EXCEEDED'),
+      500: errorResponse(500, 'Moolre status API error', 'MOOLRE_ERROR'),
     },
     [opKey('/api/ussd/payments/initialize/', 'post')]: {
       404: errorResponse(404, 'Customer not found', 'CUSTOMER_NOT_FOUND'),
-      500: errorResponse(500, 'Paystack error', 'PAYSTACK_ERROR'),
+      500: errorResponse(500, 'Moolre error', 'MOOLRE_ERROR'),
     },
     [opKey('/api/dashboard/revenue-report/', 'get')]: {
       400: errorResponse(400, 'Date validation', 'MISSING_DATES', 'INVALID_DATE_RANGE', 'DATE_RANGE_TOO_LARGE'),

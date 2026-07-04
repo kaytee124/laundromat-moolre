@@ -1,11 +1,73 @@
 const request = require('supertest');
+const express = require('express');
 const axios = require('axios');
 const app = require('../../app');
+const { createRateLimiter } = require('../../middleware/rateLimit');
 const { getTokensForRoles } = require('../helpers/auth');
 const { createService, createOrder } = require('../helpers/fixtures');
-const { Payment } = require('../../models');
+const { Payment, Order } = require('../../models');
 
 jest.mock('axios');
+
+const WEBHOOK_SECRET = process.env.MOOLRE_WEBHOOK_SECRET;
+
+function mockMoolreLinkInit() {
+  axios.post.mockImplementation((url) => {
+    if (String(url).includes('/embed/link')) {
+      return Promise.resolve({
+        data: {
+          data: {
+            authorization_url: 'https://pay.moolre.com/test',
+            reference: 'MOOLRE-REF-001',
+          },
+        },
+      });
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+}
+
+function mockMoolreStatusSuccess(amountGhs, txstatus = 1) {
+  axios.post.mockImplementation((url) => {
+    if (String(url).includes('/open/transact/status')) {
+      return Promise.resolve({
+        data: {
+          data: {
+            txstatus,
+            amount: String(amountGhs),
+            value: String(amountGhs),
+            transactionid: 'TXN-STATUS',
+            thirdpartyref: 'TP-STATUS',
+            payer: '233240000000',
+            ts: new Date().toISOString(),
+          },
+        },
+      });
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+}
+
+function buildWebhookPayload(externalref, overrides = {}) {
+  return {
+    status: 1,
+    code: 'P01',
+    message: 'Transaction Successful',
+    data: {
+      txstatus: 1,
+      payer: '233240000000',
+      accountnumber: '0000000000',
+      amount: '10.00',
+      value: '10.00',
+      transactionid: 'TXN-001',
+      externalref,
+      thirdpartyref: 'TP-001',
+      secret: WEBHOOK_SECRET,
+      ts: new Date().toISOString(),
+      ...overrides,
+    },
+  };
+}
 
 describe('Payments API', () => {
   let tokens;
@@ -25,15 +87,7 @@ describe('Payments API', () => {
 
   describe('POST /api/payments/initialize/', () => {
     it('client initializes payment', async () => {
-      axios.post.mockResolvedValue({
-        data: {
-          status: true,
-          data: {
-            authorization_url: 'https://checkout.paystack.com/test',
-            access_code: 'access123',
-          },
-        },
-      });
+      mockMoolreLinkInit();
 
       const res = await request(app)
         .post('/api/payments/initialize/')
@@ -41,7 +95,8 @@ describe('Payments API', () => {
         .send({ order_id: order.id, amount: 10 });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.authorization_url).toBeDefined();
+      expect(res.body.data.authorization_url).toBe('https://pay.moolre.com/test');
+      expect(res.body.data.externalref).toMatch(/^PAY-/);
     });
 
     it('denies non-client', async () => {
@@ -62,20 +117,15 @@ describe('Payments API', () => {
     });
   });
 
-  describe('GET /api/payments/callback/', () => {
-    it('handles missing reference', async () => {
-      const res = await request(app).get('/api/payments/callback/');
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(false);
-    });
-
-    it('verifies successful payment', async () => {
+  describe('POST /api/payments/moolre/webhook/', () => {
+    it('marks payment paid after Moolre status API confirms txstatus 1', async () => {
       const payment = await Payment.create({
         order_id: order.id,
-        reference: 'PAY-TEST-REF-001',
+        externalref: 'PAY-WEBHOOK-001',
         amount: 25,
         status: 'pending',
-        payment_method: 'paystack',
+        payment_method: 'moolre',
+        provider: 'moolre',
         currency: 'GHS',
         metadata: {},
         created_by: ctx.client.id,
@@ -83,23 +133,108 @@ describe('Payments API', () => {
         updated_at: new Date(),
       });
 
-      axios.get.mockResolvedValue({
-        data: {
-          status: true,
-          data: {
-            status: 'success',
-            amount: 2500,
-            id: 'txn123',
-            fees: 0,
-            paid_at: new Date().toISOString(),
-            gateway_response: 'Successful',
-          },
-        },
+      mockMoolreStatusSuccess(25, 1);
+
+      const payload = buildWebhookPayload(payment.externalref, { amount: '25.00', value: '25.00' });
+      const res = await request(app).post('/api/payments/moolre/webhook/').send(payload);
+
+      expect(res.status).toBe(200);
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/open/transact/status'),
+        expect.objectContaining({ idtype: '1', id: payment.externalref }),
+        expect.any(Object)
+      );
+
+      await payment.reload();
+      expect(payment.status).toBe('paid');
+
+      const updatedOrder = await Order.findByPk(order.id);
+      expect(parseFloat(updatedOrder.amount_paid)).toBeGreaterThan(0);
+    });
+
+    it('does not mark paid when webhook body says success but status API returns pending', async () => {
+      const payment = await Payment.create({
+        order_id: order.id,
+        externalref: 'PAY-WEBHOOK-PENDING',
+        amount: 20,
+        status: 'pending',
+        payment_method: 'moolre',
+        provider: 'moolre',
+        currency: 'GHS',
+        metadata: {},
+        created_by: ctx.client.id,
+        created_at: new Date(),
+        updated_at: new Date(),
       });
 
-      const res = await request(app).get(`/api/payments/callback/?reference=${payment.reference}`);
+      mockMoolreStatusSuccess(20, 0);
+
+      const payload = buildWebhookPayload(payment.externalref, {
+        txstatus: 1,
+        amount: '20.00',
+        value: '20.00',
+      });
+      const res = await request(app).post('/api/payments/moolre/webhook/').send(payload);
+
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      await payment.reload();
+      expect(payment.status).toBe('pending');
     });
+
+    it('rejects invalid webhook secret before lookup', async () => {
+      const res = await request(app)
+        .post('/api/payments/moolre/webhook/')
+        .send(buildWebhookPayload('PAY-MISSING', { secret: 'wrong-secret' }));
+      expect(res.status).toBe(403);
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/payments/{externalref}/', () => {
+    it('returns uppercase polling status', async () => {
+      await Payment.create({
+        order_id: order.id,
+        externalref: 'PAY-STATUS-001',
+        amount: 15,
+        status: 'pending',
+        payment_method: 'moolre',
+        provider: 'moolre',
+        currency: 'GHS',
+        metadata: {},
+        created_by: ctx.client.id,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const res = await request(app).get('/api/payments/PAY-STATUS-001/');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('PENDING');
+    });
+
+    it('returns 404 for unknown externalref', async () => {
+      const res = await request(app).get('/api/payments/PAY-NOT-FOUND/');
+      expect(res.status).toBe(404);
+    });
+  });
+});
+
+describe('Moolre webhook rate limiter', () => {
+  it('returns 429 when request limit is exceeded', async () => {
+    const testApp = express();
+    testApp.set('trust proxy', true);
+    testApp.use(
+      createRateLimiter({
+        max: 2,
+        windowMs: 60_000,
+        keyPrefix: 'test-webhook',
+      })
+    );
+    testApp.post('/hook', (req, res) => res.json({ ok: true }));
+
+    await request(testApp).post('/hook').expect(200);
+    await request(testApp).post('/hook').expect(200);
+    const limited = await request(testApp).post('/hook');
+    expect(limited.status).toBe(429);
+    expect(limited.body.error_code).toBe('RATE_LIMIT_EXCEEDED');
   });
 });

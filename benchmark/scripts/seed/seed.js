@@ -365,9 +365,9 @@ async function bulkInsertPayments(conn, volumes, rng, batchSize, orderStartId, o
 
   const flush = async (rows) => {
     if (!rows.length) return;
-    const placeholders = rows.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+    const placeholders = rows.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
     await conn.query(
-      `INSERT INTO payments (id, order_id, reference, amount, status, payment_method, transaction_id, payer_phone, currency, fees, metadata, verified_at, created_by, created_at, updated_at, updated_by)
+      `INSERT INTO payments (id, order_id, externalref, amount, status, payment_method, provider, transaction_id, payer_phone, currency, fees, metadata, paid_at, created_by, created_at, updated_at, updated_by)
        VALUES ${placeholders}`,
       rows.flat()
     );
@@ -384,8 +384,9 @@ async function bulkInsertPayments(conn, volumes, rng, batchSize, orderStartId, o
       orderId,
       generateReference(currentPayId),
       amount,
-      'success',
+      'paid',
       PAYMENT_METHODS[intBetween(rng, 0, PAYMENT_METHODS.length - 1)],
+      'moolre',
       `txn_${currentPayId}`,
       null,
       'GHS',

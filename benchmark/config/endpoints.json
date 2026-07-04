@@ -46,7 +46,7 @@
     { "id": "orders-detail", "method": "GET", "path": "/api/orders/{{order.id}}/", "auth": "admin" },
     { "id": "orders-update", "method": "PUT", "path": "/api/orders/{{order.id}}/update/", "auth": "admin", "csrf": true, "write": true, "skipLoad": true, "body": { "delivery_notes": "bench" } },
     { "id": "payments-initialize", "method": "POST", "path": "/api/payments/initialize/", "auth": "client", "csrf": true, "write": true, "skipLoad": true },
-    { "id": "payments-callback", "method": "GET", "path": "/api/payments/callback/", "auth": "none", "query": { "reference": "{{payment.reference}}" } },
+    { "id": "payments-status", "method": "GET", "path": "/api/payments/{{payment.externalref}}/", "auth": "none" },
     { "id": "dashboard-metrics-superadmin", "method": "GET", "path": "/api/dashboard/metrics/", "auth": "superadmin", "critical": true },
     { "id": "dashboard-metrics-admin", "method": "GET", "path": "/api/dashboard/metrics/", "auth": "admin" },
     { "id": "dashboard-metrics-employee", "method": "GET", "path": "/api/dashboard/metrics/", "auth": "employee" },

@@ -91,21 +91,33 @@ async function r04() {
   const order = await getOrder(orderId);
   const amount = Math.min(5, parseFloat(order.total_amount) - parseFloat(order.amount_paid));
   if (amount <= 0) {
-    return result('R04', 'Payment callback replay', true, 'skipped — order already paid');
+  return result('R04', 'Payment webhook replay', true, 'skipped — order already paid');
   }
   await insertPendingPayment(orderId, ref, amount);
   const beforePaid = parseFloat((await getOrder(orderId)).amount_paid);
 
+  const webhookPayload = {
+    status: 1,
+    data: {
+      txstatus: 1,
+      amount: String(amount),
+      value: String(amount),
+      transactionid: 'RACE-TXN',
+      externalref: ref,
+      secret: process.env.MOOLRE_WEBHOOK_SECRET || '',
+    },
+  };
+
   const responses = await parallel(5, () => {
     const client = new HttpClient();
-    return client.get(`/api/payments/callback/?reference=${encodeURIComponent(ref)}`);
+    return client.post('/api/payments/moolre/webhook/', webhookPayload);
   });
   const after = await getOrder(orderId);
   const afterPaid = parseFloat(after.amount_paid);
   const doubleCount = afterPaid > beforePaid + amount + 0.01;
   const no500 = !responses.some((r) => r.status === 'fulfilled' && r.value.status >= 500);
   const passed = no500 && !doubleCount;
-  return result('R04', 'Payment callback replay', passed, `amount_paid before=${beforePaid}, after=${afterPaid}, double_count=${doubleCount}`);
+  return result('R04', 'Payment webhook replay', passed, `amount_paid before=${beforePaid}, after=${afterPaid}, double_count=${doubleCount}`);
 }
 
 async function r05() {
@@ -312,11 +324,22 @@ async function r15() {
   });
   const ref = `RACE-R15-${orderId}-${Date.now()}`;
   await insertPendingPayment(orderId, ref, 1);
-  const callbacks = parallel(5, () => {
+  const webhookPayload = {
+    status: 1,
+    data: {
+      txstatus: 1,
+      amount: '1.00',
+      value: '1.00',
+      transactionid: 'RACE-R15',
+      externalref: ref,
+      secret: process.env.MOOLRE_WEBHOOK_SECRET || '',
+    },
+  };
+  const webhooks = parallel(5, () => {
     const client = new HttpClient();
-    return client.get(`/api/payments/callback/?reference=${encodeURIComponent(ref)}`);
+    return client.post('/api/payments/moolre/webhook/', webhookPayload);
   });
-  await Promise.all([complete, callbacks]);
+  await Promise.all([complete, webhooks]);
   const order = await getOrder(orderId);
   const consistent =
     ['pending', 'partial', 'partially_paid', 'paid'].includes(order.payment_status) ||

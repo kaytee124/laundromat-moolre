@@ -1,10 +1,13 @@
-require('dotenv').config();
+const { requireEnv, requireEnvInt } = require('./config/env');
 
 const app = require('./app');
 const { sequelize } = require('./models');
 const { runPendingMigrations, shouldRunMigrationsOnStart } = require('./lib/runMigrations');
+const { startPaymentReconciliation } = require('./jobs/paymentReconciliation');
+const { ensurePostmanCustomer } = require('./lib/seedPostmanCustomer');
 
-const PORT = process.env.PORT || 3000;
+const PORT = requireEnvInt('PORT');
+const NODE_ENV = requireEnv('NODE_ENV');
 
 async function start() {
   try {
@@ -13,6 +16,14 @@ async function start() {
 
     if (shouldRunMigrationsOnStart()) {
       await runPendingMigrations(sequelize);
+    }
+
+    if (NODE_ENV === 'development') {
+      await ensurePostmanCustomer();
+    }
+
+    if (NODE_ENV !== 'test') {
+      startPaymentReconciliation();
     }
 
     app.listen(PORT, () => {

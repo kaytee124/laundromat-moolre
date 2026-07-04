@@ -1,10 +1,10 @@
-require('dotenv').config();
+const { requireEnv } = require('./env');
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = requireEnv('NODE_ENV') === 'production';
 
 module.exports = {
-  csrfCookieName: process.env.CSRF_COOKIE_NAME || 'csrf_token',
-  refreshCookieName: process.env.REFRESH_COOKIE_NAME || 'refresh_token',
+  csrfCookieName: requireEnv('CSRF_COOKIE_NAME'),
+  refreshCookieName: requireEnv('REFRESH_COOKIE_NAME'),
   cookiePath: '/',
   sameSite: 'strict',
   secure: isProduction,

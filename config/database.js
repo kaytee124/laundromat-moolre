@@ -1,82 +1,61 @@
-require('dotenv').config();
+const { requireEnv, requireEnvInt } = require('./env');
 
-// Override with DB_POOL_MAX (e.g. 20 for production/benchmark load).
-function poolForEnv(env) {
-  const fromEnv = parseInt(process.env.DB_POOL_MAX, 10);
-  const max = Number.isFinite(fromEnv)
-    ? fromEnv
-    : env === 'production' || env === 'benchmark'
-      ? 20
-      : 5;
+function poolConfig() {
   return {
-    max,
+    max: requireEnvInt('DB_POOL_MAX'),
     min: 0,
     acquire: 30000,
     idle: 10000,
   };
 }
 
-const development = {
-  username: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'laundry_management_system',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 3306,
+const sharedDialect = {
   dialect: 'mysql',
   dialectOptions: {
     charset: 'utf8mb4',
   },
-  define: {
-    underscored: false,
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
   logging: false,
-  pool: poolForEnv('development'),
+};
+
+const sharedDefine = {
+  underscored: false,
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+};
+
+const dbCredentials = {
+  username: requireEnv('DB_USER'),
+  password: requireEnv('DB_PASSWORD'),
+  host: requireEnv('DB_HOST'),
+  port: requireEnvInt('DB_PORT'),
 };
 
 module.exports = {
-  development,
+  development: {
+    ...dbCredentials,
+    database: requireEnv('DB_NAME'),
+    ...sharedDialect,
+    define: sharedDefine,
+    pool: poolConfig(),
+  },
   test: {
-    username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME_TEST || 'laundry_management_system_test',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
+    ...dbCredentials,
+    database: requireEnv('DB_NAME_TEST'),
     dialect: 'mysql',
     logging: false,
   },
   production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
-    dialect: 'mysql',
-    dialectOptions: {
-      charset: 'utf8mb4',
-    },
-    logging: false,
-    pool: poolForEnv('production'),
+    ...dbCredentials,
+    database: requireEnv('DB_NAME'),
+    ...sharedDialect,
+    pool: poolConfig(),
   },
   benchmark: {
-    username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME_BENCHMARK || 'laundry_management_system_benchmark',
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
-    dialect: 'mysql',
-    dialectOptions: {
-      charset: 'utf8mb4',
-    },
-    define: {
-      underscored: false,
-      timestamps: true,
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
-    },
-    logging: false,
-    pool: poolForEnv('benchmark'),
+    ...dbCredentials,
+    database: requireEnv('DB_NAME_BENCHMARK'),
+    ...sharedDialect,
+    define: sharedDefine,
+    pool: poolConfig(),
   },
 };

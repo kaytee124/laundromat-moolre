@@ -89,10 +89,9 @@ describe('POST /api/ussd/callback/', () => {
   it('completes payment flow on confirm', async () => {
     axios.post.mockResolvedValue({
       data: {
-        status: true,
         data: {
-          authorization_url: 'https://checkout.paystack.com/ussd-flow',
-          access_code: 'ussd_flow_access',
+          authorization_url: 'https://pay.moolre.com/ussd-flow',
+          reference: 'MOOLRE-USSD-FLOW',
         },
       },
     });
@@ -137,10 +136,11 @@ describe('POST /api/ussd/callback/', () => {
     const order = await createOrder(ctx.employee, ctx.customer, service);
     await Payment.create({
       order_id: order.id,
-      reference: 'PAY-USSD-HIST-001',
+      externalref: 'PAY-USSD-HIST-001',
       amount: 25,
-      status: 'success',
+      status: 'paid',
       payment_method: 'ussd',
+      provider: 'moolre',
       currency: 'GHS',
       metadata: {},
       created_at: new Date(),
@@ -155,7 +155,7 @@ describe('POST /api/ussd/callback/', () => {
     expect(res.body.reply).toBe(false);
     expect(res.body.message).toContain(order.order_number);
     expect(res.body.message).toContain('25.00');
-    expect(res.body.message).toContain('success');
+    expect(res.body.message).toContain('paid');
   });
 
   it('maintains session continuity across requests', async () => {

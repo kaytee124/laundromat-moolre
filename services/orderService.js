@@ -377,7 +377,7 @@ async function updateOrder(orderId, data, user) {
 async function syncOrderPaymentStatus(orderId, transaction) {
   const order = await Order.findByPk(orderId, { transaction });
   const result = await Payment.findOne({
-    where: { order_id: orderId, status: 'success' },
+    where: { order_id: orderId, status: 'paid' },
     attributes: [[fn('SUM', col('amount')), 'total_paid']],
     raw: true,
     transaction,

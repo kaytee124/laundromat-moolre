@@ -102,17 +102,17 @@ async function getCustomerStats(customerId) {
 
 
 
-async function insertPendingPayment(orderId, reference, amount, adminId = 2) {
+async function insertPendingPayment(orderId, externalref, amount, adminId = 2) {
 
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   await dbQuery(
 
-    `INSERT INTO payments (order_id, reference, amount, status, payment_method, currency, fees, created_by, created_at, updated_at)
+    `INSERT INTO payments (order_id, externalref, amount, status, payment_method, provider, currency, fees, created_by, created_at, updated_at)
 
-     VALUES (?, ?, ?, 'pending', 'paystack', 'GHS', 0, ?, ?, ?)`,
+     VALUES (?, ?, ?, 'pending', 'moolre', 'moolre', 'GHS', 0, ?, ?, ?)`,
 
-    [orderId, reference, amount, adminId, now, now]
+    [orderId, externalref, amount, adminId, now, now]
 
   );
 

@@ -35,7 +35,7 @@ function resolvePath(path) {
     .replace('{{client.userId}}', m.benchmarkUsers.client)
     .replace('{{service.id}}', m.sampleServiceId)
     .replace('{{order.id}}', m.sampleOrderIds[0])
-    .replace('{{payment.reference}}', 'PAY-BENCH-REF');
+    .replace('{{payment.externalref}}', 'PAY-BENCH-REF');
 }
 
 function resolveBody(body, creds) {

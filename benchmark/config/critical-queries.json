@@ -42,7 +42,7 @@
       "name": "dashboardService.getRevenueReport",
       "source": "services/dashboardService.js",
       "description": "Payments in date range (index-friendly WHERE)",
-      "sql": "SELECT * FROM payments WHERE status = 'success' AND created_at >= ? AND created_at < ?",
+      "sql": "SELECT * FROM payments WHERE status = 'paid' AND created_at >= ? AND created_at < ?",
       "params": ["2025-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"]
     },
     {

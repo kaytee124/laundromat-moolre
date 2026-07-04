@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, payment callback, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -4106,7 +4106,8 @@
         "tags": [
           "Payments"
         ],
-        "summary": "Initialize Paystack payment (client)",
+        "summary": "Initialize Moolre payment (client)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client.\n\nCreates a pending payment and returns `authorization_url` for redirect. Completion is confirmed via Moolre webhook or reconciliation — not via redirect.",
         "security": [
           {
             "bearerAuth": []
@@ -4138,9 +4139,8 @@
                   "status": "success",
                   "message": "Payment initialized successfully",
                   "data": {
-                    "authorization_url": "https://checkout.paystack.com/example",
-                    "access_code": "ACCESS_CODE",
-                    "reference": "REF-123456",
+                    "authorization_url": "https://pay.moolre.com/example",
+                    "externalref": "PAY-1-ABC123456789",
                     "payment_id": 1
                   }
                 }
@@ -4252,16 +4252,132 @@
             }
           },
           "500": {
-            "description": "Paystack error",
+            "description": "Moolre error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
                 },
                 "examples": {
-                  "PAYSTACK_ERROR": {
+                  "MOOLRE_ERROR": {
                     "value": {
-                      "error_code": "PAYSTACK_ERROR",
+                      "error_code": "MOOLRE_ERROR",
+                      "message": "Failed to initialize payment",
+                      "status_code": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/moolre/webhook/": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Moolre payment webhook",
+        "description": "**Required auth:** None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)\n\nWebhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoolrePaymentWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid webhook secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Payment not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "RATE_LIMIT_EXCEEDED": {
+                    "value": {
+                      "error_code": "RATE_LIMIT_EXCEEDED",
+                      "message": "Too many requests. Please try again later.",
+                      "status_code": 429
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Moolre status API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "MOOLRE_ERROR": {
+                    "value": {
+                      "error_code": "MOOLRE_ERROR",
                       "message": "Failed to initialize payment",
                       "status_code": 500
                     }
@@ -4271,19 +4387,20 @@
             }
           }
         },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: client."
+        "security": []
       }
     },
-    "/api/payments/callback/": {
+    "/api/payments/{externalref}/": {
       "get": {
         "tags": [
           "Payments"
         ],
-        "summary": "Paystack payment callback",
+        "summary": "Poll payment status",
+        "description": "**Required auth:** None (frontend polling by externalref)\n\nReturns DB status updated by webhook or reconciliation cron. Does not call Moolre directly.",
         "parameters": [
           {
-            "name": "reference",
-            "in": "query",
+            "name": "externalref",
+            "in": "path",
             "required": true,
             "schema": {
               "type": "string"
@@ -4292,24 +4409,38 @@
         ],
         "responses": {
           "200": {
-            "description": "Verification result (success or failure)",
+            "description": "Payment status",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentCallbackResponse"
+                  "$ref": "#/components/schemas/PaymentStatusResponse"
+                },
+                "example": {
+                  "status": "PENDING"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 },
                 "examples": {
-                  "success": {
+                  "NOT_FOUND": {
                     "value": {
-                      "success": true,
-                      "message": "Payment processed successfully",
-                      "order_id": 1
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
                     }
                   },
-                  "failure": {
+                  "ORDER_NOT_FOUND": {
                     "value": {
-                      "success": false,
-                      "message": "Failed to verify payment"
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
                     }
                   }
                 }
@@ -4317,8 +4448,7 @@
             }
           }
         },
-        "security": [],
-        "description": "**Required auth:** None (Paystack redirect callback)"
+        "security": []
       }
     },
     "/api/ussd/payments/initialize/": {
@@ -4326,7 +4456,7 @@
         "tags": [
           "Ussd"
         ],
-        "summary": "Initialize Paystack payment via USSD (no auth)",
+        "summary": "Initialize Moolre payment via USSD (no auth)",
         "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required.",
         "requestBody": {
           "required": true,
@@ -4355,9 +4485,8 @@
                   "status": "success",
                   "message": "Payment initialized successfully",
                   "data": {
-                    "authorization_url": "https://checkout.paystack.com/example",
-                    "access_code": "ACCESS_CODE",
-                    "reference": "REF-123456",
+                    "authorization_url": "https://pay.moolre.com/example",
+                    "externalref": "PAY-1-ABC123456789",
                     "payment_id": 1
                   }
                 }
@@ -4410,16 +4539,16 @@
             }
           },
           "500": {
-            "description": "Paystack error",
+            "description": "Moolre error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
                 },
                 "examples": {
-                  "PAYSTACK_ERROR": {
+                  "MOOLRE_ERROR": {
                     "value": {
-                      "error_code": "PAYSTACK_ERROR",
+                      "error_code": "MOOLRE_ERROR",
                       "message": "Failed to initialize payment",
                       "status_code": 500
                     }
@@ -4905,7 +5034,8 @@
               "PHONE_EXISTS",
               "INVALID_PASSWORD",
               "INVALID_DATE_FORMAT",
-              "PAYSTACK_ERROR",
+              "MOOLRE_ERROR",
+              "RATE_LIMIT_EXCEEDED",
               "SERVER_ERROR"
             ]
           },
@@ -6289,11 +6419,9 @@
             "type": "string",
             "format": "uri"
           },
-          "access_code": {
-            "type": "string"
-          },
-          "reference": {
-            "type": "string"
+          "externalref": {
+            "type": "string",
+            "description": "Our idtype-1 reference for polling"
           },
           "payment_id": {
             "type": "integer"
@@ -6317,31 +6445,76 @@
           "status": "success",
           "message": "Payment initialized successfully",
           "data": {
-            "authorization_url": "https://checkout.paystack.com/example",
-            "access_code": "ACCESS_CODE",
-            "reference": "REF-123456",
+            "authorization_url": "https://pay.moolre.com/example",
+            "externalref": "PAY-1-ABC123456789",
             "payment_id": 1
           }
         }
       },
-      "PaymentCallbackResponse": {
+      "PaymentStatusResponse": {
         "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean"
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PAID",
+              "FAILED"
+            ]
+          }
+        },
+        "example": {
+          "status": "PENDING"
+        }
+      },
+      "MoolrePaymentWebhookRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
           },
           "message": {
             "type": "string"
           },
-          "order_id": {
-            "type": "integer",
-            "description": "Present on successful verification"
+          "data": {
+            "type": "object",
+            "properties": {
+              "txstatus": {
+                "type": "integer",
+                "description": "1=Successful, 0=Pending, 2=Failed"
+              },
+              "payer": {
+                "type": "string"
+              },
+              "accountnumber": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "transactionid": {
+                "type": "string"
+              },
+              "externalref": {
+                "type": "string"
+              },
+              "thirdpartyref": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "ts": {
+                "type": "string"
+              }
+            }
           }
-        },
-        "example": {
-          "success": true,
-          "message": "Payment processed successfully",
-          "order_id": 1
         }
       },
       "DashboardRecentOrder": {

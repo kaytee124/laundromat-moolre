@@ -4,7 +4,7 @@ const path = require('path');
 const SECURITY_NOTES = [
   '[SECURITY] CORS uses reflective origin with credentials — tighten via CORS_ORIGINS allowlist before production.',
   '[SECURITY] No rate limiting on /api/accounts/login/ or /api/customers/register/ — brute-force and spam risk.',
-  '[SECURITY] Payment callback is unauthenticated — relies on Paystack verify; add idempotency and optional signed state param.',
+  '[SECURITY] Moolre payment webhook is unauthenticated — relies on data.secret validation; ensure MOOLRE_WEBHOOK_SECRET is strong and HTTPS is used.',
   '[SECURITY] jwt.verify() does not pin algorithms — pass { algorithms: ["HS256"] } on every verify call.',
   '[SECURITY] Refresh token stored in HttpOnly cookie — access token remains in JSON; ensure HTTPS in production.',
   '[SECURITY] CSRF double-submit required on login, refresh, logout, and silent token refresh.',

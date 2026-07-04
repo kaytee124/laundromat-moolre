@@ -29,7 +29,7 @@ function decimalBetween(rng, min, max, decimals = 2) {
 
 const ORDER_STATUSES = ['pending', 'in_progress', 'ready', 'completed', 'cancelled'];
 const PAYMENT_STATUSES = ['pending', 'partial', 'paid'];
-const PAYMENT_METHODS = ['cash', 'card', 'bank', 'ussd', 'paystack'];
+const PAYMENT_METHODS = ['cash', 'card', 'bank', 'ussd', 'moolre'];
 const CONTACT_METHODS = ['phone', 'whatsapp', 'email'];
 const SERVICE_CATEGORIES = ['wash', 'dry_clean', 'iron', 'express', 'specialty'];
 const SERVICE_UNITS = ['kg', 'piece', 'set'];

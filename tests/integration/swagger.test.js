@@ -49,7 +49,8 @@ const PUBLIC_OPENAPI_ROUTES = [
   { method: 'post', path: '/api/accounts/token/verify/' },
   { method: 'post', path: '/api/customers/register/' },
   { method: 'get', path: '/api/services/list/' },
-  { method: 'get', path: '/api/payments/callback/' },
+  { method: 'post', path: '/api/payments/moolre/webhook/' },
+  { method: 'get', path: '/api/payments/{externalref}/' },
   { method: 'post', path: '/api/ussd/payments/initialize/' },
   { method: 'post', path: '/api/ussd/callback/' },
   { method: 'post', path: '/api/accounts/superadmin/create/' },
@@ -105,15 +106,16 @@ describe('Swagger API documentation', () => {
       expect(hasResponseExample(spec, '/api/accounts/login/', 'post', 200)).toBe(true);
       expect(hasErrorExamples(spec, '/api/accounts/login/', 'post', 401)).toBe(true);
       expect(hasResponseExample(spec, '/api/payments/initialize/', 'post', 200)).toBe(true);
-      expect(hasResponseExample(spec, '/api/payments/callback/', 'get', 200)).toBe(true);
+      expect(hasResponseExample(spec, '/api/payments/moolre/webhook/', 'post', 200)).toBe(true);
+      expect(hasResponseExample(spec, '/api/payments/{externalref}/', 'get', 200)).toBe(true);
       expect(hasResponseExample(spec, '/api/ussd/callback/', 'post', 200)).toBe(true);
     });
 
-    it('documents payment callback order_id on success', () => {
-      const props = spec.components.schemas.PaymentCallbackResponse.properties;
-      expect(props.order_id).toBeDefined();
-      const callback = responseJsonContent(spec, '/api/payments/callback/', 'get', 200);
-      expect(callback.examples.success.value.order_id).toBeDefined();
+    it('documents Moolre payment status polling schema', () => {
+      const props = spec.components.schemas.PaymentStatusResponse.properties;
+      expect(props.status.enum).toEqual(['PENDING', 'PAID', 'FAILED']);
+      const statusExample = responseJsonContent(spec, '/api/payments/{externalref}/', 'get', 200);
+      expect(statusExample.example.status).toBe('PENDING');
     });
 
     it('documents health degraded state', () => {

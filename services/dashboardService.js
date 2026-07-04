@@ -246,7 +246,7 @@ async function getMetrics(user) {
 }
 
 const PAYMENT_DATE_FILTER = `
-  status = 'success'
+  status = 'paid'
   AND created_at >= :rangeStart
   AND created_at < :rangeEndExclusive
 `;

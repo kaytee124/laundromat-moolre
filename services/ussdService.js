@@ -1,11 +1,9 @@
-const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { User, Customer, Order, Payment, UssdSession, sequelize } = require('../models');
 const { AppError } = require('../utils/errors');
 const { formatOrder, getUserName } = require('../utils/serializers');
 const { getMsisdnLookupVariants } = require('../utils/phone');
-const paystackService = require('./paystackService');
-const paystackConfig = require('../config/paystack');
+const paymentService = require('./paymentService');
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
 const ORDERS_PAGE_SIZE = 5;
@@ -328,118 +326,7 @@ async function getOrderbyPhoneNumber(phoneNumber) {
 }
 
 async function initializePayment(phoneNumber, orderId, amount) {
-  const found = await findCustomerByMsisdn(phoneNumber);
-  if (!found) throw new AppError('CUSTOMER_NOT_FOUND', 'Customer profile not found', 404);
-  const { customer } = found;
-
-  const order = await Order.findOne({
-    where: { id: orderId, customer_id: customer.id },
-  });
-
-  if (!order) {
-    throw new AppError(
-      'ORDER_NOT_FOUND',
-      'Order not found or you do not have permission to pay for this order',
-      404
-    );
-  }
-
-  const paymentAmount = parseFloat(amount);
-  if (order.payment_status === 'paid') {
-    throw new AppError('ORDER_ALREADY_PAID', 'This order has already been fully paid', 400);
-  }
-
-  const remaining = getAmountDue(order);
-  if (remaining <= 0) {
-    throw new AppError('NO_AMOUNT_DUE', 'No amount due for this order', 400);
-  }
-
-  if (paymentAmount > remaining) {
-    throw new AppError(
-      'AMOUNT_EXCEEDS_BALANCE',
-      `Payment amount (GHS ${paymentAmount.toFixed(2)}) cannot exceed remaining balance (GHS ${remaining.toFixed(2)})`,
-      400
-    );
-  }
-
-  const customerUser = await User.findByPk(customer.user_id);
-  if (!customerUser?.email) {
-    throw new AppError('EMAIL_NOT_FOUND', 'Customer email not found. Please update your profile.', 400);
-  }
-
-  const uniqueRef = `PAY-${order.id}-${uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
-  const amountInPesewas = Math.round(paymentAmount * 100);
-
-  const payment = await sequelize.transaction(async (t) => {
-    return Payment.create(
-      {
-        order_id: order.id,
-        reference: uniqueRef,
-        amount: paymentAmount,
-        status: 'pending',
-        payment_method: 'ussd',
-        transaction_id: uniqueRef,
-        payer_phone: found.phoneNumber,
-        currency: 'GHS',
-        metadata: {
-          order_id: order.id,
-          order_number: order.order_number,
-          customer_id: customer.id,
-        },
-        created_by: null,
-      },
-      { transaction: t }
-    );
-  });
-
-  try {
-    const response = await paystackService.initializeTransaction({
-      email: customerUser.email,
-      amount: String(amountInPesewas),
-      reference: uniqueRef,
-      callback_url: paystackConfig.callbackUrl,
-      channels: ['mobile_money'],
-      metadata: {
-        order_id: order.id,
-        order_number: order.order_number,
-        customer_id: customer.id,
-        payment_id: payment.id,
-      },
-    });
-
-    if (!response.status) {
-      payment.status = 'failed';
-      payment.metadata = {
-        ...payment.metadata,
-        paystack_error: response,
-        error_message: response.message || 'Failed to initialize payment',
-      };
-      await payment.save();
-      throw new AppError('PAYSTACK_ERROR', response.message || 'Failed to initialize payment', 500);
-    }
-
-    const paymentData = response.data || {};
-    payment.transaction_id = paymentData.access_code || uniqueRef;
-    payment.metadata = {
-      ...payment.metadata,
-      paystack_response: response,
-      access_code: paymentData.access_code,
-      authorization_url: paymentData.authorization_url,
-    };
-    await payment.save();
-
-    return {
-      authorization_url: paymentData.authorization_url,
-      access_code: paymentData.access_code,
-      reference: uniqueRef,
-      payment_id: payment.id,
-    };
-  } catch (err) {
-    if (err instanceof AppError) throw err;
-    payment.status = 'failed';
-    await payment.save();
-    throw new AppError('PAYSTACK_ERROR', 'Failed to initialize payment', 500);
-  }
+  return paymentService.initializePaymentForUssd(phoneNumber, orderId, amount);
 }
 
 module.exports = {

@@ -8,20 +8,35 @@ const { recordFinding } = require('../reportSummary');
 
 jest.mock('axios');
 
-function mockPaystackSuccess(amountGhs) {
-  axios.get.mockResolvedValue({
+const WEBHOOK_SECRET = process.env.MOOLRE_WEBHOOK_SECRET;
+
+function mockMoolreStatus(amountGhs) {
+  axios.post.mockResolvedValue({
     data: {
-      status: true,
       data: {
-        status: 'success',
-        amount: Math.round(amountGhs * 100),
-        id: 'txn-replay-test',
-        fees: 0,
-        paid_at: new Date().toISOString(),
-        gateway_response: 'Successful',
+        txstatus: 1,
+        amount: String(amountGhs),
+        value: String(amountGhs),
+        transactionid: 'txn-replay-test',
+        thirdpartyref: 'TP-REPLAY',
+        payer: '233240000000',
+        ts: new Date().toISOString(),
       },
     },
   });
+}
+
+function buildWebhookPayload(externalref) {
+  return {
+    status: 1,
+    code: 'P01',
+    message: 'Transaction Successful',
+    data: {
+      txstatus: 1,
+      externalref,
+      secret: WEBHOOK_SECRET,
+    },
+  };
 }
 
 describe('Security: Payment abuse', () => {
@@ -40,51 +55,56 @@ describe('Security: Payment abuse', () => {
     jest.clearAllMocks();
   });
 
-  it('callback succeeds without authentication (public endpoint)', async () => {
+  it('webhook succeeds without authentication (public endpoint)', async () => {
     const payment = await Payment.create({
       order_id: order.id,
-      reference: 'PAY-PUBLIC-CALLBACK',
+      externalref: 'PAY-PUBLIC-WEBHOOK',
       amount: 10,
       status: 'pending',
-      payment_method: 'paystack',
+      payment_method: 'moolre',
+      provider: 'moolre',
       currency: 'GHS',
       metadata: {},
       created_at: new Date(),
       updated_at: new Date(),
     });
 
-    mockPaystackSuccess(10);
+    mockMoolreStatus(10);
 
-    const res = await request(app).get(`/api/payments/callback/?reference=${payment.reference}`);
+    const res = await request(app)
+      .post('/api/payments/moolre/webhook/')
+      .send(buildWebhookPayload(payment.externalref));
+
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    recordFinding('PAYMENT_CALLBACK_PUBLIC', 'Payment callback processed without auth');
+    recordFinding('PAYMENT_WEBHOOK_PUBLIC', 'Payment webhook processed without auth (secret validated)');
   });
 
-  it('replay callback does not double-credit order amount_paid', async () => {
+  it('replay webhook does not double-credit order amount_paid', async () => {
     const payment = await Payment.create({
       order_id: order.id,
-      reference: 'PAY-REPLAY-TEST',
+      externalref: 'PAY-REPLAY-TEST',
       amount: 15,
       status: 'pending',
-      payment_method: 'paystack',
+      payment_method: 'moolre',
+      provider: 'moolre',
       currency: 'GHS',
       metadata: {},
       created_at: new Date(),
       updated_at: new Date(),
     });
 
-    mockPaystackSuccess(15);
+    mockMoolreStatus(15);
 
-    const first = await request(app).get(`/api/payments/callback/?reference=${payment.reference}`);
-    expect(first.body.success).toBe(true);
+    const payload = buildWebhookPayload(payment.externalref);
+
+    const first = await request(app).post('/api/payments/moolre/webhook/').send(payload);
+    expect(first.status).toBe(200);
 
     const afterFirst = await Order.findByPk(order.id);
     const paidAfterFirst = parseFloat(afterFirst.amount_paid);
 
-    mockPaystackSuccess(15);
-    const second = await request(app).get(`/api/payments/callback/?reference=${payment.reference}`);
-    expect(second.body.success).toBe(true);
+    const second = await request(app).post('/api/payments/moolre/webhook/').send(payload);
+    expect(second.status).toBe(200);
 
     const afterSecond = await Order.findByPk(order.id);
     expect(parseFloat(afterSecond.amount_paid)).toBe(paidAfterFirst);
@@ -123,28 +143,34 @@ describe('Security: Payment abuse', () => {
     }
   });
 
-  it('callback credits only the order tied to the payment reference', async () => {
+  it('webhook credits only the order tied to the payment externalref', async () => {
     const service = await createService(ctx.admin);
     const baselineOrder = await createOrder(ctx.employee, ctx.customer, service);
     const otherOrder = await createOrder(ctx.employee, ctx.customer2, service);
 
     const payment = await Payment.create({
       order_id: otherOrder.id,
-      reference: 'PAY-OTHER-ORDER-REF',
+      externalref: 'PAY-OTHER-ORDER-REF',
       amount: 20,
       status: 'pending',
-      payment_method: 'paystack',
+      payment_method: 'moolre',
+      provider: 'moolre',
       currency: 'GHS',
       metadata: {},
       created_at: new Date(),
       updated_at: new Date(),
     });
 
-    mockPaystackSuccess(20);
+    mockMoolreStatus(20);
 
-    const res = await request(app).get(`/api/payments/callback/?reference=${payment.reference}`);
-    expect(res.body.success).toBe(true);
-    expect(res.body.order_id).toBe(otherOrder.id);
+    const res = await request(app)
+      .post('/api/payments/moolre/webhook/')
+      .send(buildWebhookPayload(payment.externalref));
+
+    expect(res.status).toBe(200);
+
+    const credited = await Order.findByPk(otherOrder.id);
+    expect(parseFloat(credited.amount_paid)).toBeGreaterThan(0);
 
     const untouched = await Order.findByPk(baselineOrder.id);
     expect(parseFloat(untouched.amount_paid)).toBe(0);

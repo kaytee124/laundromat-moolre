@@ -6,11 +6,22 @@ Laundry management REST API (Node.js + Express + Sequelize + MySQL).
 
 ```bash
 npm install
-copy .env.example .env   # configure MySQL, JWT, Paystack
+copy .env.example .env   # configure MySQL, JWT; add Moolre vars in .env (see MOOLRE_* placeholders)
 npm start                # applies pending migrations automatically
 ```
 
 `npm run db:migrate` is still available for CI or one-off runs. For Jest, use `npm run db:migrate:test` (test DB is separate and not migrated via `server.js`).
+
+## Payments (Moolre)
+
+Configure these in `.env` (not `.env.example`):
+
+- `MOOLRE_API_USER`, `MOOLRE_API_PUBKEY`, `MOOLRE_ACCOUNT_NUMBER`
+- `MOOLRE_WEBHOOK_URL` — must point to `POST /api/payments/moolre/webhook/`
+- `MOOLRE_REDIRECT_URL` — frontend “verifying payment” page (polls `GET /api/payments/{externalref}/`)
+- `MOOLRE_WEBHOOK_SECRET` — validated against `data.secret` on webhooks
+
+Flow: client calls `POST /api/payments/initialize/` → redirect to `authorization_url` → Moolre webhook marks paid (or reconciliation cron after 2 minutes).
 
 ## Testing
 

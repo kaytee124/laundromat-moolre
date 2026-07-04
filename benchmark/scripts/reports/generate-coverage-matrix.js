@@ -41,7 +41,7 @@ const COVERAGE = {
     { item: 'WebSocket / real-time', status: 'n/a', covered_by: null },
     { item: 'Multi-instance deployment', status: 'manual', covered_by: null },
     { item: 'MySQL replication lag', status: 'manual', covered_by: null },
-    { item: 'Paystack webhook signature timing', status: 'partial', covered_by: 'tests/security/paymentAbuse.test.js' },
+    { item: 'Moolre webhook secret validation', status: 'partial', covered_by: 'tests/security/paymentAbuse.test.js' },
   ],
 };
 

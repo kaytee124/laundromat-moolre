@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const swaggerUi = require('swagger-ui-express');
+const { requireEnv } = require('./env');
 
 let baseSpec = null;
 
@@ -11,7 +12,7 @@ const CSRF_PROTECTED_PATHS = new Set([
 ]);
 
 function isSwaggerEnabled() {
-  return process.env.SWAGGER_ENABLED !== 'false';
+  return requireEnv('SWAGGER_ENABLED') === 'true';
 }
 
 function loadBaseOpenApiSpec() {

@@ -1,9 +1,194 @@
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
 const { User, Customer, Order, Payment, sequelize } = require('../models');
 const { AppError } = require('../utils/errors');
-const paystackService = require('./paystackService');
-const paystackConfig = require('../config/paystack');
+const moolreService = require('./moolreService');
+const moolreConfig = require('../config/moolre');
 const orderService = require('./orderService');
+
+const POLLING_STATUS_MAP = {
+  pending: 'PENDING',
+  paid: 'PAID',
+  failed: 'FAILED',
+};
+
+function generateExternalRef(orderId) {
+  return `PAY-${orderId}-${uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+}
+
+function timingSafeEqual(a, b) {
+  const strA = String(a);
+  const strB = String(b);
+  if (strA.length !== strB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(strA), Buffer.from(strB));
+}
+
+function normalizeTxStatus(txstatus) {
+  const status = Number(txstatus);
+  if (status === 1) return 'paid';
+  if (status === 2) return 'failed';
+  return 'pending';
+}
+
+async function applyMoolreStatus(payment, data, source) {
+  const previousStatus = payment.status;
+  const txstatus = Number(data.txstatus);
+  const now = new Date();
+
+  if (payment.status === 'paid') {
+    return { changed: false, previousStatus, newStatus: payment.status };
+  }
+
+  if (payment.status === 'failed' && txstatus !== 1) {
+    return { changed: false, previousStatus, newStatus: payment.status };
+  }
+
+  const newStatus = normalizeTxStatus(txstatus);
+
+  if (newStatus === 'pending') {
+    payment.last_checked_at = now;
+    payment.metadata = {
+      ...payment.metadata,
+      last_status_check: { source, data, checked_at: now.toISOString() },
+    };
+    await payment.save();
+    return { changed: false, previousStatus, newStatus: payment.status };
+  }
+
+  await sequelize.transaction(async (t) => {
+    if (data.transactionid) payment.transaction_id = String(data.transactionid);
+    if (data.thirdpartyref) payment.thirdparty_ref = String(data.thirdpartyref);
+    if (data.payer) payment.payer = String(data.payer);
+    if (data.value != null) payment.value = parseFloat(data.value);
+    payment.last_checked_at = now;
+    payment.metadata = {
+      ...payment.metadata,
+      [`${source}_payload`]: data,
+    };
+
+    if (newStatus === 'paid') {
+      payment.status = 'paid';
+      payment.paid_at = data.ts ? new Date(data.ts) : now;
+      await payment.save({ transaction: t });
+      await orderService.syncOrderPaymentStatus(payment.order_id, t);
+    } else if (newStatus === 'failed') {
+      payment.status = 'failed';
+      await payment.save({ transaction: t });
+    }
+  });
+
+  await payment.reload();
+  return {
+    changed: previousStatus !== payment.status,
+    previousStatus,
+    newStatus: payment.status,
+  };
+}
+
+async function validateOrderForPayment(order, paymentAmount) {
+  if (order.payment_status === 'paid') {
+    throw new AppError('ORDER_ALREADY_PAID', 'This order has already been fully paid', 400);
+  }
+
+  const remaining = parseFloat(order.total_amount) - parseFloat(order.amount_paid);
+  if (remaining <= 0) {
+    throw new AppError('NO_AMOUNT_DUE', 'No amount due for this order', 400);
+  }
+
+  if (paymentAmount > remaining) {
+    throw new AppError(
+      'AMOUNT_EXCEEDS_BALANCE',
+      `Payment amount (GHS ${paymentAmount.toFixed(2)}) cannot exceed remaining balance (GHS ${remaining.toFixed(2)})`,
+      400
+    );
+  }
+}
+
+async function createMoolrePayment({
+  order,
+  customer,
+  paymentAmount,
+  paymentMethod,
+  payerPhone,
+  createdBy,
+}) {
+  const customerUser = await User.findByPk(customer.user_id);
+  if (!customerUser?.email) {
+    throw new AppError('EMAIL_NOT_FOUND', 'Customer email not found. Please update your profile.', 400);
+  }
+
+  const externalref = generateExternalRef(order.id);
+
+  const payment = await sequelize.transaction(async (t) => {
+    return Payment.create(
+      {
+        order_id: order.id,
+        externalref,
+        amount: paymentAmount,
+        status: 'pending',
+        payment_method: paymentMethod,
+        provider: 'moolre',
+        currency: 'GHS',
+        payer_phone: payerPhone || null,
+        metadata: {
+          order_id: order.id,
+          order_number: order.order_number,
+          customer_id: customer.id,
+        },
+        created_by: createdBy,
+      },
+      { transaction: t }
+    );
+  });
+
+  try {
+    const response = await moolreService.generatePaymentLink({
+      email: customerUser.email,
+      amount: paymentAmount.toFixed(2),
+      externalref,
+      metadata: {
+        order_id: order.id,
+        order_number: order.order_number,
+        customer_id: customer.id,
+        payment_id: payment.id,
+      },
+    });
+
+    const paymentData = response.data || {};
+    if (!paymentData.authorization_url) {
+      payment.status = 'failed';
+      payment.metadata = {
+        ...payment.metadata,
+        moolre_error: response,
+        error_message: response.message || 'Failed to initialize payment',
+      };
+      await payment.save();
+      throw new AppError('MOOLRE_ERROR', response.message || 'Failed to initialize payment', 500);
+    }
+
+    payment.moolre_reference = paymentData.reference ? String(paymentData.reference) : null;
+    payment.metadata = {
+      ...payment.metadata,
+      moolre_link_response: response,
+      authorization_url: paymentData.authorization_url,
+    };
+    await payment.save();
+
+    return {
+      authorization_url: paymentData.authorization_url,
+      externalref,
+      payment_id: payment.id,
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    payment.status = 'failed';
+    await payment.save();
+    throw new AppError('MOOLRE_ERROR', 'Failed to initialize payment', 500);
+  }
+}
 
 async function initializePayment(user, orderId, amount) {
   if (user.role !== 'client') {
@@ -26,178 +211,224 @@ async function initializePayment(user, orderId, amount) {
   }
 
   const paymentAmount = parseFloat(amount);
-  if (order.payment_status === 'paid') {
-    throw new AppError('ORDER_ALREADY_PAID', 'This order has already been fully paid', 400);
-  }
+  await validateOrderForPayment(order, paymentAmount);
 
-  const remaining = parseFloat(order.total_amount) - parseFloat(order.amount_paid);
-  if (remaining <= 0) {
-    throw new AppError('NO_AMOUNT_DUE', 'No amount due for this order', 400);
-  }
-
-  if (paymentAmount > remaining) {
-    throw new AppError(
-      'AMOUNT_EXCEEDS_BALANCE',
-      `Payment amount (GHS ${paymentAmount.toFixed(2)}) cannot exceed remaining balance (GHS ${remaining.toFixed(2)})`,
-      400
-    );
-  }
-
-  const customerUser = await User.findByPk(customer.user_id);
-  if (!customerUser?.email) {
-    throw new AppError('EMAIL_NOT_FOUND', 'Customer email not found. Please update your profile.', 400);
-  }
-
-  const uniqueRef = `PAY-${order.id}-${uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
-  const amountInPesewas = Math.round(paymentAmount * 100);
-
-  const payment = await sequelize.transaction(async (t) => {
-    return Payment.create(
-      {
-        order_id: order.id,
-        reference: uniqueRef,
-        amount: paymentAmount,
-        status: 'pending',
-        payment_method: 'paystack',
-        transaction_id: uniqueRef,
-        currency: 'GHS',
-        metadata: {
-          order_id: order.id,
-          order_number: order.order_number,
-          customer_id: customer.id,
-        },
-        created_by: user.id,
-      },
-      { transaction: t }
-    );
+  return createMoolrePayment({
+    order,
+    customer,
+    paymentAmount,
+    paymentMethod: 'moolre',
+    createdBy: user.id,
   });
-
-  try {
-    const response = await paystackService.initializeTransaction({
-      email: customerUser.email,
-      amount: String(amountInPesewas),
-      reference: uniqueRef,
-      callback_url: paystackConfig.callbackUrl,
-      channels: ['bank', 'card', 'apple_pay', 'mobile_money'],
-      metadata: {
-        order_id: order.id,
-        order_number: order.order_number,
-        customer_id: customer.id,
-        payment_id: payment.id,
-      },
-    });
-
-    if (!response.status) {
-      payment.status = 'failed';
-      payment.metadata = {
-        ...payment.metadata,
-        paystack_error: response,
-        error_message: response.message || 'Failed to initialize payment',
-      };
-      await payment.save();
-      throw new AppError('PAYSTACK_ERROR', response.message || 'Failed to initialize payment', 500);
-    }
-
-    const paymentData = response.data || {};
-    payment.transaction_id = paymentData.access_code || uniqueRef;
-    payment.metadata = {
-      ...payment.metadata,
-      paystack_response: response,
-      access_code: paymentData.access_code,
-      authorization_url: paymentData.authorization_url,
-    };
-    await payment.save();
-
-    return {
-      authorization_url: paymentData.authorization_url,
-      access_code: paymentData.access_code,
-      reference: uniqueRef,
-      payment_id: payment.id,
-    };
-  } catch (err) {
-    if (err instanceof AppError) throw err;
-    payment.status = 'failed';
-    await payment.save();
-    throw new AppError('PAYSTACK_ERROR', 'Failed to initialize payment', 500);
-  }
 }
 
-async function handleCallback(reference) {
-  if (!reference) {
-    return { success: false, message: 'Payment reference not provided' };
+async function initializePaymentForUssd(phoneNumber, orderId, amount) {
+  const { findCustomerByMsisdn } = require('./ussdService');
+  const found = await findCustomerByMsisdn(phoneNumber);
+  if (!found) {
+    throw new AppError('CUSTOMER_NOT_FOUND', 'Customer not found for this phone number', 404);
   }
 
-  let response;
-  try {
-    response = await paystackService.verifyTransaction(reference);
-  } catch {
-    return { success: false, message: 'Failed to verify payment' };
+  const { customer } = found;
+  const order = await Order.findOne({
+    where: { id: orderId, customer_id: customer.id },
+  });
+
+  if (!order) {
+    throw new AppError('ORDER_NOT_FOUND', 'Order not found for this customer', 404);
   }
 
-  if (!response.status) {
-    return { success: false, message: response.message || 'Failed to verify payment' };
-  }
+  const paymentAmount = parseFloat(amount);
+  await validateOrderForPayment(order, paymentAmount);
 
-  const transactionData = response.data || {};
-  const transactionStatus = transactionData.status;
-  const transactionAmount = parseFloat(transactionData.amount || 0) / 100;
+  return createMoolrePayment({
+    order,
+    customer,
+    paymentAmount,
+    paymentMethod: 'ussd',
+    payerPhone: found.phoneNumber,
+    createdBy: null,
+  });
+}
 
-  const payment = await Payment.findOne({ where: { reference }, include: [{ model: Order, as: 'order' }] });
-  if (!payment) {
-    return { success: false, message: 'Payment record not found' };
-  }
+async function validateStatusAmount(payment, statusData) {
+  if (statusData.amount == null) return;
 
   const expectedAmount = parseFloat(payment.amount);
-  if (Math.abs(transactionAmount - expectedAmount) > 0.01) {
+  const receivedAmount = parseFloat(statusData.amount);
+  if (Math.abs(receivedAmount - expectedAmount) > 0.01) {
     payment.status = 'failed';
     payment.metadata = {
       ...payment.metadata,
       verification_error: 'Amount mismatch',
       expected_amount: String(expectedAmount),
-      received_amount: String(transactionAmount),
+      received_amount: String(receivedAmount),
     };
     await payment.save();
-    return { success: false, message: 'Payment amount mismatch. Please contact support.' };
+    throw new AppError('VALIDATION_ERROR', 'Payment amount mismatch', 400);
   }
+}
 
-  if (transactionStatus === 'success') {
-    await sequelize.transaction(async (t) => {
-      payment.status = 'success';
-      payment.transaction_id = String(transactionData.id || '');
-      payment.fees = parseFloat(transactionData.fees || 0) / 100;
-      payment.verified_at = transactionData.paid_at ? new Date(transactionData.paid_at) : new Date();
-      payment.metadata = {
-        ...payment.metadata,
-        verification_response: response,
-        channel: transactionData.channel,
-        gateway_response: transactionData.gateway_response,
-      };
-      await payment.save({ transaction: t });
-      await orderService.syncOrderPaymentStatus(payment.order_id, t);
+async function fetchAndApplyPaymentStatus(payment, source, { idtype = '1', id = null } = {}) {
+  const lookupId = id || payment.externalref;
+  let response;
+
+  try {
+    response = await moolreService.checkTransactionStatus({
+      idtype: String(idtype),
+      id: lookupId,
     });
-
-    return {
-      success: true,
-      message: 'Payment processed successfully',
-      order_id: payment.order_id,
-    };
+  } catch (err) {
+    throw new AppError('MOOLRE_ERROR', 'Failed to verify payment status with Moolre', 500);
   }
 
-  payment.status = 'failed';
-  payment.metadata = {
-    ...payment.metadata,
-    verification_response: response,
-    gateway_response: transactionData.gateway_response || 'Payment failed',
-  };
-  await payment.save();
+  const statusData = response?.data || response || {};
 
-  return {
-    success: false,
-    message: transactionData.gateway_response || 'Payment failed',
-  };
+  if (Number(statusData.txstatus) === 1) {
+    await validateStatusAmount(payment, statusData);
+  }
+
+  const result = await applyMoolreStatus(payment, statusData, source);
+  await payment.reload();
+  return result;
+}
+
+async function handleMoolreWebhook(payload) {
+  const data = payload?.data;
+
+  if (!data?.secret || !timingSafeEqual(data.secret, moolreConfig.webhookSecret)) {
+    throw new AppError('PERMISSION_DENIED', 'Invalid webhook secret', 403);
+  }
+
+  if (!data.externalref) {
+    throw new AppError('VALIDATION_ERROR', 'Missing externalref in webhook payload', 400);
+  }
+
+  const payment = await Payment.findOne({
+    where: { externalref: data.externalref },
+    include: [{ model: Order, as: 'order' }],
+  });
+
+  if (!payment) {
+    throw new AppError('NOT_FOUND', 'Payment record not found', 404);
+  }
+
+  if (payment.status === 'paid') {
+    return { processed: false, status: payment.status };
+  }
+
+  await fetchAndApplyPaymentStatus(payment, 'webhook');
+
+  return { processed: true, status: payment.status };
+}
+
+function getPaymentStatus(externalref) {
+  return Payment.findOne({ where: { externalref } }).then((payment) => {
+    if (!payment) {
+      throw new AppError('NOT_FOUND', 'Payment not found', 404);
+    }
+    const status = POLLING_STATUS_MAP[payment.status] || 'FAILED';
+    return { status };
+  });
+}
+
+async function reconcilePayment(payment) {
+  if (payment.status !== 'pending' || payment.provider !== 'moolre') {
+    return { skipped: true, reason: 'not_pending' };
+  }
+
+  const maxAgeMs = 24 * 60 * 60 * 1000;
+  if (Date.now() - new Date(payment.created_at).getTime() > maxAgeMs) {
+    payment.status = 'failed';
+    payment.metadata = { ...payment.metadata, expired: true };
+    payment.last_checked_at = new Date();
+    await payment.save();
+    console.log(
+      JSON.stringify({
+        event: 'payment_reconciliation',
+        paymentId: payment.id,
+        externalref: payment.externalref,
+        idtypeUsed: null,
+        previousStatus: 'pending',
+        newStatus: 'failed',
+        reason: 'expired',
+      })
+    );
+    return { expired: true, previousStatus: 'pending', newStatus: 'failed' };
+  }
+
+  let response;
+  let idtypeUsed = '1';
+
+  try {
+    response = await moolreService.checkTransactionStatus({
+      idtype: '1',
+      id: payment.externalref,
+    });
+  } catch {
+    if (!payment.moolre_reference) {
+      payment.last_checked_at = new Date();
+      await payment.save();
+      return { error: true, idtypeUsed: '1' };
+    }
+    idtypeUsed = '2';
+    try {
+      response = await moolreService.checkTransactionStatus({
+        idtype: '2',
+        id: payment.moolre_reference,
+      });
+    } catch {
+      payment.last_checked_at = new Date();
+      await payment.save();
+      return { error: true, idtypeUsed: '2' };
+    }
+  }
+
+  const statusData = response?.data || response || {};
+
+  if (Number(statusData.txstatus) === 1) {
+    await validateStatusAmount(payment, statusData);
+  }
+
+  const result = await applyMoolreStatus(payment, statusData, 'reconciliation');
+
+  console.log(
+    JSON.stringify({
+      event: 'payment_reconciliation',
+      paymentId: payment.id,
+      externalref: payment.externalref,
+      idtypeUsed,
+      previousStatus: result.previousStatus,
+      newStatus: result.newStatus,
+    })
+  );
+
+  return { ...result, idtypeUsed };
+}
+
+async function reconcilePendingPayments() {
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+  const pending = await Payment.findAll({
+    where: {
+      status: 'pending',
+      provider: 'moolre',
+      created_at: { [Op.lt]: twoMinutesAgo },
+    },
+  });
+
+  for (const payment of pending) {
+    await reconcilePayment(payment);
+  }
 }
 
 module.exports = {
   initializePayment,
-  handleCallback,
+  initializePaymentForUssd,
+  handleMoolreWebhook,
+  getPaymentStatus,
+  fetchAndApplyPaymentStatus,
+  applyMoolreStatus,
+  reconcilePayment,
+  reconcilePendingPayments,
+  generateExternalRef,
 };
