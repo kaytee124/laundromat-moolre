@@ -117,6 +117,85 @@ const EXAMPLE_ORDER = {
   ],
 };
 
+const EXAMPLE_DASHBOARD_RECENT_ORDER = {
+  id: 1,
+  order_number: 'ORD-ABC12345',
+  customer_name: 'Jane Doe',
+  total_amount: '50.00',
+  status: 'pending',
+};
+
+const EXAMPLE_DASHBOARD_CLIENT_RECENT_ORDER = {
+  id: 1,
+  order_number: 'ORD-ABC12345',
+  total_amount: '50.00',
+  balance: 50,
+  status: 'pending',
+  created_at: '2025-06-01',
+};
+
+const EXAMPLE_DASHBOARD_EMPLOYEE_ASSIGNED_ORDER = {
+  id: 1,
+  order_number: 'ORD-ABC12345',
+  customer_name: 'Jane Doe',
+  status: 'pending',
+  estimated_completion: '2025-06-05',
+};
+
+const EXAMPLE_DASHBOARD_CLIENT = {
+  status: 'success',
+  data: {
+    total_orders: 3,
+    total_spent: 150,
+    pending_orders: 1,
+    ready_for_pickup: 0,
+    recent_orders: [EXAMPLE_DASHBOARD_CLIENT_RECENT_ORDER],
+  },
+};
+
+const EXAMPLE_DASHBOARD_EMPLOYEE = {
+  status: 'success',
+  data: {
+    my_orders: 12,
+    my_pending: 3,
+    my_in_progress: 5,
+    my_today_orders: 2,
+    my_revenue: 600,
+    my_assigned_orders: [EXAMPLE_DASHBOARD_EMPLOYEE_ASSIGNED_ORDER],
+  },
+};
+
+const EXAMPLE_DASHBOARD_ADMIN = {
+  status: 'success',
+  data: {
+    total_customers: 42,
+    total_orders: 128,
+    total_revenue: 12500,
+    today_orders: 5,
+    today_revenue: 350,
+    pending_orders: 8,
+    ready_for_pickup: 3,
+    recent_orders: [EXAMPLE_DASHBOARD_RECENT_ORDER],
+  },
+};
+
+const EXAMPLE_DASHBOARD_SUPERADMIN = {
+  status: 'success',
+  data: {
+    total_customers: 42,
+    total_staff: 6,
+    total_orders: 128,
+    total_revenue: 12500,
+    today_orders: 5,
+    today_revenue: 350,
+    pending_orders: 8,
+    in_progress_orders: 4,
+    ready_for_pickup: 3,
+    total_outstanding: 890,
+    recent_orders: [EXAMPLE_DASHBOARD_RECENT_ORDER],
+  },
+};
+
 const PUBLIC = [];
 const bearer = [{ bearerAuth: [] }];
 const csrfOnly = [{ csrfHeader: [] }];
@@ -1128,10 +1207,12 @@ const spec = {
       get: {
         tags: ['Dashboard'],
         summary: 'Role-based dashboard metrics',
+        description:
+          'Returns role-specific metrics in `data`. Use the response **Examples** dropdown (client, employee, admin, superadmin) to preview each shape.',
         security: bearer,
         responses: {
           200: {
-            description: 'Metrics (shape varies by role)',
+            description: 'Metrics (shape varies by JWT role)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/DashboardMetricsResponse' } } },
           },
           401: stdErrors[401],
@@ -1738,14 +1819,106 @@ const spec = {
           order_id: 1,
         },
       },
+      DashboardRecentOrder: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          order_number: { type: 'string' },
+          customer_name: { type: 'string', nullable: true },
+          total_amount: { type: 'string' },
+          status: { type: 'string', description: 'Order status' },
+        },
+      },
+      DashboardClientRecentOrder: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          order_number: { type: 'string' },
+          total_amount: { type: 'string' },
+          balance: { type: 'number', description: 'total_amount minus amount_paid' },
+          status: { type: 'string' },
+          created_at: { type: 'string', format: 'date', nullable: true },
+        },
+      },
+      DashboardEmployeeAssignedOrder: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          order_number: { type: 'string' },
+          customer_name: { type: 'string', nullable: true },
+          status: { type: 'string' },
+          estimated_completion: { type: 'string', format: 'date', nullable: true },
+        },
+      },
+      DashboardClientMetrics: {
+        type: 'object',
+        properties: {
+          total_orders: { type: 'integer' },
+          total_spent: { type: 'number' },
+          pending_orders: { type: 'integer' },
+          ready_for_pickup: { type: 'integer' },
+          recent_orders: { type: 'array', items: { $ref: '#/components/schemas/DashboardClientRecentOrder' } },
+        },
+        example: EXAMPLE_DASHBOARD_CLIENT.data,
+      },
+      DashboardEmployeeMetrics: {
+        type: 'object',
+        properties: {
+          my_orders: { type: 'integer' },
+          my_pending: { type: 'integer' },
+          my_in_progress: { type: 'integer' },
+          my_today_orders: { type: 'integer' },
+          my_revenue: { type: 'number' },
+          my_assigned_orders: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/DashboardEmployeeAssignedOrder' },
+          },
+        },
+        example: EXAMPLE_DASHBOARD_EMPLOYEE.data,
+      },
+      DashboardAdminMetrics: {
+        type: 'object',
+        properties: {
+          total_customers: { type: 'integer' },
+          total_orders: { type: 'integer' },
+          total_revenue: { type: 'number' },
+          today_orders: { type: 'integer' },
+          today_revenue: { type: 'number' },
+          pending_orders: { type: 'integer' },
+          ready_for_pickup: { type: 'integer' },
+          recent_orders: { type: 'array', items: { $ref: '#/components/schemas/DashboardRecentOrder' } },
+        },
+        example: EXAMPLE_DASHBOARD_ADMIN.data,
+      },
+      DashboardSuperadminMetrics: {
+        type: 'object',
+        properties: {
+          total_customers: { type: 'integer' },
+          total_staff: { type: 'integer' },
+          total_orders: { type: 'integer' },
+          total_revenue: { type: 'number' },
+          today_orders: { type: 'integer' },
+          today_revenue: { type: 'number' },
+          pending_orders: { type: 'integer' },
+          in_progress_orders: { type: 'integer' },
+          ready_for_pickup: { type: 'integer' },
+          total_outstanding: { type: 'number' },
+          recent_orders: { type: 'array', items: { $ref: '#/components/schemas/DashboardRecentOrder' } },
+        },
+        example: EXAMPLE_DASHBOARD_SUPERADMIN.data,
+      },
       DashboardMetricsResponse: {
         type: 'object',
         properties: {
           status: { type: 'string', example: 'success' },
           data: {
-            type: 'object',
-            additionalProperties: true,
-            description: 'Shape depends on role (superadmin, admin, employee, client)',
+            oneOf: [
+              { $ref: '#/components/schemas/DashboardClientMetrics' },
+              { $ref: '#/components/schemas/DashboardEmployeeMetrics' },
+              { $ref: '#/components/schemas/DashboardAdminMetrics' },
+              { $ref: '#/components/schemas/DashboardSuperadminMetrics' },
+            ],
+            description: 'Shape depends on JWT role (client, employee, admin, superadmin)',
           },
         },
       },
@@ -1916,10 +2089,6 @@ function applyDocumentation(openApiSpec) {
     user: EXAMPLE_USER,
   };
   schemas.RefreshResponse.example = { access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed' };
-  schemas.DashboardMetricsResponse.example = {
-    status: 'success',
-    data: { total_orders: 42, pending_orders: 5, revenue_today: '350.00' },
-  };
   schemas.RevenueReportResponse.example = EXAMPLE_REVENUE;
 
   const opKey = (path, method) => `${method.toUpperCase()} ${path}`;
@@ -2032,7 +2201,14 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/ussd/callback/', 'post')]: {
       200: schemas.MoolreUssdCallbackResponse.example,
     },
-    [opKey('/api/dashboard/metrics/', 'get')]: { 200: schemas.DashboardMetricsResponse.example },
+    [opKey('/api/dashboard/metrics/', 'get')]: {
+      200: {
+        client: { value: EXAMPLE_DASHBOARD_CLIENT },
+        employee: { value: EXAMPLE_DASHBOARD_EMPLOYEE },
+        admin: { value: EXAMPLE_DASHBOARD_ADMIN },
+        superadmin: { value: EXAMPLE_DASHBOARD_SUPERADMIN },
+      },
+    },
     [opKey('/api/dashboard/revenue-report/', 'get')]: { 200: EXAMPLE_REVENUE },
   };
 

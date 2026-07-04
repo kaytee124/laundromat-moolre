@@ -121,6 +121,25 @@ describe('Swagger API documentation', () => {
       expect(health.examples.degraded.value.status).toBe('degraded');
     });
 
+    it('documents dashboard metrics per role with typed schemas', () => {
+      expect(spec.components.schemas.DashboardClientMetrics).toBeDefined();
+      expect(spec.components.schemas.DashboardEmployeeMetrics).toBeDefined();
+      expect(spec.components.schemas.DashboardAdminMetrics).toBeDefined();
+      expect(spec.components.schemas.DashboardSuperadminMetrics).toBeDefined();
+
+      const metrics = responseJsonContent(spec, '/api/dashboard/metrics/', 'get', 200);
+      expect(metrics.examples.client).toBeDefined();
+      expect(metrics.examples.employee).toBeDefined();
+      expect(metrics.examples.admin).toBeDefined();
+      expect(metrics.examples.superadmin).toBeDefined();
+
+      const clientExample = metrics.examples.client.value;
+      expect(clientExample.data.total_spent).toBeDefined();
+      expect(clientExample.data.recent_orders[0].balance).toBeDefined();
+      expect(metrics.examples.superadmin.value.data.total_staff).toBeDefined();
+      expect(metrics.examples.employee.value.data.my_assigned_orders).toBeDefined();
+    });
+
     it('documents bearerAuth scheme with access JWT instructions', () => {
       const bearer = spec.components.securitySchemes.bearerAuth;
       expect(bearer.description).toMatch(/access/i);

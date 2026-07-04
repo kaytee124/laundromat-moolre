@@ -4481,6 +4481,7 @@
           "Dashboard"
         ],
         "summary": "Role-based dashboard metrics",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user (metrics vary by role).\n\nReturns role-specific metrics in `data`. Use the response **Examples** dropdown (client, employee, admin, superadmin) to preview each shape.",
         "security": [
           {
             "bearerAuth": []
@@ -4488,18 +4489,103 @@
         ],
         "responses": {
           "200": {
-            "description": "Metrics (shape varies by role)",
+            "description": "Metrics (shape varies by JWT role)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardMetricsResponse"
                 },
-                "example": {
-                  "status": "success",
-                  "data": {
-                    "total_orders": 42,
-                    "pending_orders": 5,
-                    "revenue_today": "350.00"
+                "examples": {
+                  "client": {
+                    "value": {
+                      "status": "success",
+                      "data": {
+                        "total_orders": 3,
+                        "total_spent": 150,
+                        "pending_orders": 1,
+                        "ready_for_pickup": 0,
+                        "recent_orders": [
+                          {
+                            "id": 1,
+                            "order_number": "ORD-ABC12345",
+                            "total_amount": "50.00",
+                            "balance": 50,
+                            "status": "pending",
+                            "created_at": "2025-06-01"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "employee": {
+                    "value": {
+                      "status": "success",
+                      "data": {
+                        "my_orders": 12,
+                        "my_pending": 3,
+                        "my_in_progress": 5,
+                        "my_today_orders": 2,
+                        "my_revenue": 600,
+                        "my_assigned_orders": [
+                          {
+                            "id": 1,
+                            "order_number": "ORD-ABC12345",
+                            "customer_name": "Jane Doe",
+                            "status": "pending",
+                            "estimated_completion": "2025-06-05"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "admin": {
+                    "value": {
+                      "status": "success",
+                      "data": {
+                        "total_customers": 42,
+                        "total_orders": 128,
+                        "total_revenue": 12500,
+                        "today_orders": 5,
+                        "today_revenue": 350,
+                        "pending_orders": 8,
+                        "ready_for_pickup": 3,
+                        "recent_orders": [
+                          {
+                            "id": 1,
+                            "order_number": "ORD-ABC12345",
+                            "customer_name": "Jane Doe",
+                            "total_amount": "50.00",
+                            "status": "pending"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "superadmin": {
+                    "value": {
+                      "status": "success",
+                      "data": {
+                        "total_customers": 42,
+                        "total_staff": 6,
+                        "total_orders": 128,
+                        "total_revenue": 12500,
+                        "today_orders": 5,
+                        "today_revenue": 350,
+                        "pending_orders": 8,
+                        "in_progress_orders": 4,
+                        "ready_for_pickup": 3,
+                        "total_outstanding": 890,
+                        "recent_orders": [
+                          {
+                            "id": 1,
+                            "order_number": "ORD-ABC12345",
+                            "customer_name": "Jane Doe",
+                            "total_amount": "50.00",
+                            "status": "pending"
+                          }
+                        ]
+                      }
+                    }
                   }
                 }
               }
@@ -4531,8 +4617,7 @@
               }
             }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: any authenticated user (metrics vary by role)."
+        }
       }
     },
     "/api/dashboard/revenue-report/": {
@@ -6259,6 +6344,270 @@
           "order_id": 1
         }
       },
+      "DashboardRecentOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "customer_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "total_amount": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Order status"
+          }
+        }
+      },
+      "DashboardClientRecentOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "description": "total_amount minus amount_paid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "DashboardEmployeeAssignedOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "customer_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "estimated_completion": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        }
+      },
+      "DashboardClientMetrics": {
+        "type": "object",
+        "properties": {
+          "total_orders": {
+            "type": "integer"
+          },
+          "total_spent": {
+            "type": "number"
+          },
+          "pending_orders": {
+            "type": "integer"
+          },
+          "ready_for_pickup": {
+            "type": "integer"
+          },
+          "recent_orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardClientRecentOrder"
+            }
+          }
+        },
+        "example": {
+          "total_orders": 3,
+          "total_spent": 150,
+          "pending_orders": 1,
+          "ready_for_pickup": 0,
+          "recent_orders": [
+            {
+              "id": 1,
+              "order_number": "ORD-ABC12345",
+              "total_amount": "50.00",
+              "balance": 50,
+              "status": "pending",
+              "created_at": "2025-06-01"
+            }
+          ]
+        }
+      },
+      "DashboardEmployeeMetrics": {
+        "type": "object",
+        "properties": {
+          "my_orders": {
+            "type": "integer"
+          },
+          "my_pending": {
+            "type": "integer"
+          },
+          "my_in_progress": {
+            "type": "integer"
+          },
+          "my_today_orders": {
+            "type": "integer"
+          },
+          "my_revenue": {
+            "type": "number"
+          },
+          "my_assigned_orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardEmployeeAssignedOrder"
+            }
+          }
+        },
+        "example": {
+          "my_orders": 12,
+          "my_pending": 3,
+          "my_in_progress": 5,
+          "my_today_orders": 2,
+          "my_revenue": 600,
+          "my_assigned_orders": [
+            {
+              "id": 1,
+              "order_number": "ORD-ABC12345",
+              "customer_name": "Jane Doe",
+              "status": "pending",
+              "estimated_completion": "2025-06-05"
+            }
+          ]
+        }
+      },
+      "DashboardAdminMetrics": {
+        "type": "object",
+        "properties": {
+          "total_customers": {
+            "type": "integer"
+          },
+          "total_orders": {
+            "type": "integer"
+          },
+          "total_revenue": {
+            "type": "number"
+          },
+          "today_orders": {
+            "type": "integer"
+          },
+          "today_revenue": {
+            "type": "number"
+          },
+          "pending_orders": {
+            "type": "integer"
+          },
+          "ready_for_pickup": {
+            "type": "integer"
+          },
+          "recent_orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardRecentOrder"
+            }
+          }
+        },
+        "example": {
+          "total_customers": 42,
+          "total_orders": 128,
+          "total_revenue": 12500,
+          "today_orders": 5,
+          "today_revenue": 350,
+          "pending_orders": 8,
+          "ready_for_pickup": 3,
+          "recent_orders": [
+            {
+              "id": 1,
+              "order_number": "ORD-ABC12345",
+              "customer_name": "Jane Doe",
+              "total_amount": "50.00",
+              "status": "pending"
+            }
+          ]
+        }
+      },
+      "DashboardSuperadminMetrics": {
+        "type": "object",
+        "properties": {
+          "total_customers": {
+            "type": "integer"
+          },
+          "total_staff": {
+            "type": "integer"
+          },
+          "total_orders": {
+            "type": "integer"
+          },
+          "total_revenue": {
+            "type": "number"
+          },
+          "today_orders": {
+            "type": "integer"
+          },
+          "today_revenue": {
+            "type": "number"
+          },
+          "pending_orders": {
+            "type": "integer"
+          },
+          "in_progress_orders": {
+            "type": "integer"
+          },
+          "ready_for_pickup": {
+            "type": "integer"
+          },
+          "total_outstanding": {
+            "type": "number"
+          },
+          "recent_orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardRecentOrder"
+            }
+          }
+        },
+        "example": {
+          "total_customers": 42,
+          "total_staff": 6,
+          "total_orders": 128,
+          "total_revenue": 12500,
+          "today_orders": 5,
+          "today_revenue": 350,
+          "pending_orders": 8,
+          "in_progress_orders": 4,
+          "ready_for_pickup": 3,
+          "total_outstanding": 890,
+          "recent_orders": [
+            {
+              "id": 1,
+              "order_number": "ORD-ABC12345",
+              "customer_name": "Jane Doe",
+              "total_amount": "50.00",
+              "status": "pending"
+            }
+          ]
+        }
+      },
       "DashboardMetricsResponse": {
         "type": "object",
         "properties": {
@@ -6267,17 +6616,21 @@
             "example": "success"
           },
           "data": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "Shape depends on role (superadmin, admin, employee, client)"
-          }
-        },
-        "example": {
-          "status": "success",
-          "data": {
-            "total_orders": 42,
-            "pending_orders": 5,
-            "revenue_today": "350.00"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DashboardClientMetrics"
+              },
+              {
+                "$ref": "#/components/schemas/DashboardEmployeeMetrics"
+              },
+              {
+                "$ref": "#/components/schemas/DashboardAdminMetrics"
+              },
+              {
+                "$ref": "#/components/schemas/DashboardSuperadminMetrics"
+              }
+            ],
+            "description": "Shape depends on JWT role (client, employee, admin, superadmin)"
           }
         }
       },
