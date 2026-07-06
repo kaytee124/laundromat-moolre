@@ -261,7 +261,7 @@ async function handleConfirmPaymentStep(sessionId, data, input, { moolreSessionI
   }
 
   try {
-    await initializePayment({
+    initializePayment({
       phoneNumber: data.phoneNumber,
       orderId: data.selectedOrderId,
       amount: data.paymentAmount,
@@ -270,7 +270,7 @@ async function handleConfirmPaymentStep(sessionId, data, input, { moolreSessionI
       payerMsisdn,
     });
     await deleteSession(sessionId);
-    return { message: 'Payment is initialized. You will get a prompt.', reply: false };
+    return { message: 'Payment is initialized. You will get a prompt. For MTN users dial *170# and check approvals to confirm the payment.', reply: false };
   } catch (err) {
     if (err instanceof AppError) {
       await saveSession(sessionId, STEPS.ENTER_AMOUNT, data);
