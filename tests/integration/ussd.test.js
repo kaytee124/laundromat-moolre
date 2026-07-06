@@ -55,6 +55,7 @@ describe('USSD payments API', () => {
       expect.objectContaining({
         channel: '13',
         sessionid: 'moolre-ussd-session-123',
+        payer: ctx.customer.phone_number,
       }),
       expect.any(Object)
     );

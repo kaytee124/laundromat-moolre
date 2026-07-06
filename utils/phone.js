@@ -30,8 +30,13 @@ function formatSmsRecipient(msisdn) {
   return `233${digits}`;
 }
 
+function formatMoolrePaymentPayer(msisdn) {
+  return normalizeMsisdn(msisdn);
+}
+
 module.exports = {
   normalizeMsisdn,
   getMsisdnLookupVariants,
   formatSmsRecipient,
+  formatMoolrePaymentPayer,
 };

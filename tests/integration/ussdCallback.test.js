@@ -163,7 +163,7 @@ describe('POST /api/ussd/callback/', () => {
       expect.objectContaining({
         sessionid: session,
         channel: '13',
-        payer: TEST_MSISDN,
+        payer: '0200000001',
       }),
       expect.any(Object)
     );

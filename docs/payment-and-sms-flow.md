@@ -148,7 +148,7 @@ POST https://<your-host>/api/ussd/callback/
 
 Live Moolre may send `application/x-www-form-urlencoded` with the JSON payload embedded as a single form field key (not separate fields). The API normalizes this before handling. The simulator typically sends `application/json` directly. The `new` flag may arrive as `1` or `true` for a new session.
 
-**USSD payments use Moolre Initiate Payment** (`POST /open/transact/payment`), not the web payment link. On menu confirm, the server passes the Moolre USSD `sessionId` as `sessionid` to skip OTP and maps `network` to `channel` (3→13 MTN, 5→7 AT, 6→6 Telecel). Network is stored in the USSD session when first received.
+**USSD payments use Moolre Initiate Payment** (`POST /open/transact/payment`), not the web payment link. On menu confirm, the server passes the Moolre USSD `sessionId` as `sessionid` to skip OTP and maps `network` to `channel` (3→13 MTN, 5→7 AT, 6→6 Telecel). Network is stored in the USSD session when first received. The `payer` field sent to Moolre uses local Ghana format (`0502412618`); customer SMS uses international `233…` format.
 
 Direct API (no menu):
 

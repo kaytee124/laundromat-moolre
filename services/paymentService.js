@@ -8,7 +8,7 @@ const moolreConfig = require('../config/moolre');
 const orderService = require('./orderService');
 const orderNotificationService = require('./orderNotificationService');
 const { mapUssdNetworkToChannel } = require('../utils/moolreNetwork');
-const { formatSmsRecipient } = require('../utils/phone');
+const { formatMoolrePaymentPayer } = require('../utils/phone');
 
 const POLLING_STATUS_MAP = {
   pending: 'PENDING',
@@ -228,7 +228,7 @@ async function createMoolreUssdPushPayment({
   createdBy,
 }) {
   const channel = mapUssdNetworkToChannel(network);
-  const payer = formatSmsRecipient(payerMsisdn || payerPhone);
+  const payer = formatMoolrePaymentPayer(payerMsisdn || payerPhone);
   const externalref = generateExternalRef(order.id);
 
   const payment = await sequelize.transaction(async (t) => {
