@@ -48,6 +48,42 @@ describe('POST /api/ussd/callback/', () => {
     expect(res.body.message).toContain('2. View recent payment history');
   });
 
+  it('shows welcome menu when new is sent as 1', async () => {
+    const res = await request(app)
+      .post('/api/ussd/callback/')
+      .send({
+        sessionId: `${SESSION_ID}-new-as-one`,
+        new: 1,
+        msisdn: TEST_MSISDN,
+        message: '',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.reply).toBe(true);
+    expect(res.body.message).toContain('Welcome client1 Test');
+  });
+
+  it('parses live Moolre form-urlencoded body with JSON as form key', async () => {
+    const jsonPayload = JSON.stringify({
+      sessionId: `${SESSION_ID}-live-form`,
+      new: 1,
+      msisdn: TEST_MSISDN,
+      network: 6,
+      message: '',
+      extension: '4017',
+      data: '',
+    });
+
+    const res = await request(app)
+      .post('/api/ussd/callback/')
+      .type('form')
+      .send({ [jsonPayload]: '' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.reply).toBe(true);
+    expect(res.body.message).toContain('Welcome client1 Test');
+  });
+
   it('shows no pending order when customer has none unpaid', async () => {
     const paidOrder = await createOrder(ctx.employee, ctx.customer, service, {
       payment_status: 'paid',

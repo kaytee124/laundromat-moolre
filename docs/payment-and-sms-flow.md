@@ -140,7 +140,15 @@ If SMS fails, the server logs `order_sms_failed` and the payment/order API still
 
 ## USSD variant
 
-No login or CSRF required:
+Interactive menu (configure in Moolre dashboard):
+
+```
+POST https://<your-host>/api/ussd/callback/
+```
+
+Live Moolre may send `application/x-www-form-urlencoded` with the JSON payload embedded as a single form field key (not separate fields). The API normalizes this before handling. The simulator typically sends `application/json` directly. The `new` flag may arrive as `1` or `true` for a new session.
+
+No login or CSRF required for direct payment init:
 
 ```
 POST /api/ussd/payments/initialize/

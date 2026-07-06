@@ -1,4 +1,5 @@
 const ussdService = require('../services/ussdService');
+const { parseUssdCallbackBody, parseUssdNew } = require('../utils/ussdCallbackBody');
 
 async function initializePayment(req, res) {
   const { phone_number, order_id, amount } = req.body;
@@ -11,9 +12,9 @@ async function initializePayment(req, res) {
 }
 
 async function handleCallback(req, res) {
-  const body = req.body || {};
+  const body = parseUssdCallbackBody(req);
   const sessionId = body.sessionId ?? body.sessionid;
-  const isNew = body.new === true || body.new === 'true';
+  const isNew = parseUssdNew(body.new);
   const msisdn = body.msisdn;
   const message = body.message;
 
@@ -21,7 +22,8 @@ async function handleCallback(req, res) {
     JSON.stringify({
       event: 'ussd_callback_request',
       contentType: req.headers['content-type'],
-      body,
+      rawBody: req.body,
+      normalizedBody: body,
       parsed: {
         sessionId,
         newRaw: body.new,
