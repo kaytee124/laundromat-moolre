@@ -2,8 +2,15 @@ const ussdService = require('../services/ussdService');
 const { parseUssdCallbackBody, parseUssdNew } = require('../utils/ussdCallbackBody');
 
 async function initializePayment(req, res) {
-  const { phone_number, order_id, amount } = req.body;
-  const data = await ussdService.initializePayment(phone_number, order_id, amount);
+  const { phone_number, order_id, amount, network, session_id } = req.body;
+  const data = await ussdService.initializePayment({
+    phoneNumber: phone_number,
+    orderId: order_id,
+    amount,
+    network,
+    moolreSessionId: session_id,
+    payerMsisdn: phone_number,
+  });
   res.json({
     status: 'success',
     message: 'Payment initialized successfully',
@@ -42,6 +49,7 @@ async function handleCallback(req, res) {
     new: isNew,
     msisdn,
     message,
+    network: body.network,
   });
 
   console.log(

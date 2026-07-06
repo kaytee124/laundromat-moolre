@@ -1236,16 +1236,17 @@ const spec = {
         tags: ['Ussd'],
         summary: 'Initialize Moolre payment via USSD (no auth)',
         description:
-          'Identifies the customer by phone number. No JWT required. Same Moolre payment and post-confirmation side effects as the client flow ' +
-          '(including 30% auto-`in_progress` and customer SMS after webhook confirms payment).',
+          'Identifies the customer by phone number. No JWT required. Uses Moolre Initiate Payment (`POST /open/transact/payment`) — not the web payment link. ' +
+          'Requires `network` (Moolre USSD code: 3=MTN, 5=AT, 6=Telecel). Optional `session_id` skips OTP when set to the Moolre USSD session id. ' +
+          'Post-confirmation side effects match the client flow (30% auto-`in_progress`, customer SMS).',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/UssdPaymentInitializeRequest' } } },
         },
         responses: {
           200: {
-            description: 'Payment initialized',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/PaymentInitializeResponse' } } },
+            description: 'USSD push payment initiated',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/UssdPaymentInitializeResponse' } } },
           },
           400: stdErrors[400],
           404: stdErrors[404],
@@ -1829,11 +1830,33 @@ const spec = {
       },
       UssdPaymentInitializeRequest: {
         type: 'object',
-        required: ['phone_number', 'order_id', 'amount'],
+        required: ['phone_number', 'order_id', 'amount', 'network'],
         properties: {
           phone_number: { type: 'string', example: '0200000001' },
           order_id: { type: 'integer' },
           amount: { type: 'number' },
+          network: { type: 'integer', description: 'Moolre USSD network: 3=MTN, 5=AT, 6=Telecel' },
+          session_id: {
+            type: 'string',
+            description: 'Moolre USSD session id — when set, passed as sessionid to skip OTP',
+          },
+        },
+      },
+      UssdPaymentInitializeData: {
+        type: 'object',
+        properties: {
+          externalref: { type: 'string', description: 'Our idtype-1 reference for polling' },
+          payment_id: { type: 'integer' },
+          moolre_code: { type: 'string', nullable: true },
+          moolre_message: { type: 'string' },
+        },
+      },
+      UssdPaymentInitializeResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string' },
+          message: { type: 'string' },
+          data: { $ref: '#/components/schemas/UssdPaymentInitializeData' },
         },
       },
       MoolreUssdCallbackRequest: {
@@ -2050,6 +2073,17 @@ const EXAMPLE_PAYMENT_INIT = {
     authorization_url: 'https://pay.moolre.com/example',
     externalref: 'PAY-1-ABC123456789',
     payment_id: 1,
+  },
+};
+
+const EXAMPLE_USSD_PAYMENT_INIT = {
+  status: 'success',
+  message: 'Payment initialized successfully',
+  data: {
+    externalref: 'PAY-1-ABC123456789',
+    payment_id: 1,
+    moolre_code: 'TP00',
+    moolre_message: 'Payment request sent',
   },
 };
 
@@ -2281,7 +2315,7 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
     [opKey('/api/payments/moolre/webhook/', 'post')]: { 200: { status: 'ok' } },
     [opKey('/api/payments/{externalref}/', 'get')]: { 200: { status: 'PENDING' } },
-    [opKey('/api/ussd/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
+    [opKey('/api/ussd/payments/initialize/', 'post')]: { 200: EXAMPLE_USSD_PAYMENT_INIT },
     [opKey('/api/ussd/callback/', 'post')]: {
       200: schemas.MoolreUssdCallbackResponse.example,
     },
@@ -2323,7 +2357,8 @@ function applyDocumentation(openApiSpec) {
       500: errorResponse(500, 'Moolre status API error', 'MOOLRE_ERROR'),
     },
     [opKey('/api/ussd/payments/initialize/', 'post')]: {
-      404: errorResponse(404, 'Customer not found', 'CUSTOMER_NOT_FOUND'),
+      400: errorResponse(400, 'Validation', 'VALIDATION_ERROR', 'ORDER_ALREADY_PAID', 'NO_AMOUNT_DUE', 'AMOUNT_EXCEEDS_BALANCE'),
+      404: errorResponse(404, 'Customer or order not found', 'CUSTOMER_NOT_FOUND', 'ORDER_NOT_FOUND'),
       500: errorResponse(500, 'Moolre error', 'MOOLRE_ERROR'),
     },
     [opKey('/api/dashboard/revenue-report/', 'get')]: {
@@ -2365,6 +2400,8 @@ function applyDocumentation(openApiSpec) {
       phone_number: '0200000001',
       order_id: 1,
       amount: 50,
+      network: 6,
+      session_id: '4708826970',
     },
     [opKey('/api/payments/initialize/', 'post')]: {
       order_id: 1,

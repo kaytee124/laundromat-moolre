@@ -7,6 +7,8 @@ const moolreService = require('./moolreService');
 const moolreConfig = require('../config/moolre');
 const orderService = require('./orderService');
 const orderNotificationService = require('./orderNotificationService');
+const { mapUssdNetworkToChannel } = require('../utils/moolreNetwork');
+const { formatSmsRecipient } = require('../utils/phone');
 
 const POLLING_STATUS_MAP = {
   pending: 'PENDING',
@@ -133,11 +135,10 @@ async function validateOrderForPayment(order, paymentAmount) {
   }
 }
 
-async function createMoolrePayment({
+async function createMoolreWebPayment({
   order,
   customer,
   paymentAmount,
-  paymentMethod,
   payerPhone,
   createdBy,
 }) {
@@ -155,7 +156,7 @@ async function createMoolrePayment({
         externalref,
         amount: paymentAmount,
         status: 'pending',
-        payment_method: paymentMethod,
+        payment_method: 'moolre',
         provider: 'moolre',
         currency: 'GHS',
         payer_phone: payerPhone || null,
@@ -216,6 +217,79 @@ async function createMoolrePayment({
   }
 }
 
+async function createMoolreUssdPushPayment({
+  order,
+  customer,
+  paymentAmount,
+  payerPhone,
+  payerMsisdn,
+  moolreSessionId,
+  network,
+  createdBy,
+}) {
+  const channel = mapUssdNetworkToChannel(network);
+  const payer = formatSmsRecipient(payerMsisdn || payerPhone);
+  const externalref = generateExternalRef(order.id);
+
+  const payment = await sequelize.transaction(async (t) => {
+    return Payment.create(
+      {
+        order_id: order.id,
+        externalref,
+        amount: paymentAmount,
+        status: 'pending',
+        payment_method: 'ussd',
+        provider: 'moolre',
+        currency: 'GHS',
+        payer_phone: payerPhone || null,
+        metadata: {
+          order_id: order.id,
+          order_number: order.order_number,
+          customer_id: customer.id,
+          ussd_network: network,
+          moolre_channel: channel,
+        },
+        created_by: createdBy,
+      },
+      { transaction: t }
+    );
+  });
+
+  try {
+    const response = await moolreService.initiatePayment({
+      channel,
+      payer,
+      amount: paymentAmount.toFixed(2),
+      externalref,
+      sessionid: moolreSessionId || '',
+      reference: order.order_number,
+    });
+
+    payment.metadata = {
+      ...payment.metadata,
+      moolre_initiate_response: response,
+    };
+    await payment.save();
+
+    return {
+      externalref,
+      payment_id: payment.id,
+      moolre_code: response.code || null,
+      moolre_message: response.message || 'Payment request sent',
+    };
+  } catch (err) {
+    payment.status = 'failed';
+    payment.metadata = {
+      ...payment.metadata,
+      moolre_error: err.response || { message: err.message, code: err.code },
+      error_message: err.message,
+    };
+    await payment.save();
+    if (err instanceof AppError) throw err;
+    throw new AppError('MOOLRE_ERROR', err.message || 'Failed to initialize payment', 500);
+  }
+}
+
 async function initializePayment(user, orderId, amount) {
   if (user.role !== 'client') {
     throw new AppError('PERMISSION_DENIED', 'Only clients can make payments', 403);
@@ -239,16 +313,24 @@ async function initializePayment(user, orderId, amount) {
   const paymentAmount = parseFloat(amount);
   await validateOrderForPayment(order, paymentAmount);
 
-  return createMoolrePayment({
+  return createMoolreWebPayment({
     order,
     customer,
     paymentAmount,
-    paymentMethod: 'moolre',
     createdBy: user.id,
   });
 }
 
-async function initializePaymentForUssd(phoneNumber, orderId, amount) {
+async function initializePaymentForUssd(
+  phoneNumber,
+  orderId,
+  amount,
+  { moolreSessionId, network, payerMsisdn } = {}
+) {
+  if (network == null || network === '') {
+    throw new AppError('VALIDATION_ERROR', 'network is required for USSD payments', 400);
+  }
+
   const { findCustomerByMsisdn } = require('./ussdService');
   const found = await findCustomerByMsisdn(phoneNumber);
   if (!found) {
@@ -267,12 +349,14 @@ async function initializePaymentForUssd(phoneNumber, orderId, amount) {
   const paymentAmount = parseFloat(amount);
   await validateOrderForPayment(order, paymentAmount);
 
-  return createMoolrePayment({
+  return createMoolreUssdPushPayment({
     order,
     customer,
     paymentAmount,
-    paymentMethod: 'ussd',
     payerPhone: found.phoneNumber,
+    payerMsisdn: payerMsisdn || phoneNumber,
+    moolreSessionId,
+    network,
     createdBy: null,
   });
 }

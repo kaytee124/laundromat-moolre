@@ -7,12 +7,29 @@ const { Payment } = require('../../models');
 jest.mock('axios');
 
 const TEST_MSISDN = '233200000001';
+const TEST_NETWORK = 3;
 const SESSION_ID = 'test-ussd-session-001';
 
-async function ussdRequest(sessionId, { isNew, msisdn = TEST_MSISDN, message = '' }) {
+function mockMoolreInitiatePayment() {
+  axios.post.mockImplementation((url) => {
+    if (String(url).includes('/open/transact/payment')) {
+      return Promise.resolve({
+        data: {
+          status: 1,
+          code: 'TP00',
+          message: 'Payment request sent',
+          data: null,
+        },
+      });
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+}
+
+async function ussdRequest(sessionId, { isNew, msisdn = TEST_MSISDN, message = '', network = TEST_NETWORK }) {
   return request(app)
     .post('/api/ussd/callback/')
-    .send({ sessionId, new: isNew, msisdn, message });
+    .send({ sessionId, new: isNew, msisdn, message, network });
 }
 
 describe('POST /api/ussd/callback/', () => {
@@ -55,6 +72,7 @@ describe('POST /api/ussd/callback/', () => {
         sessionId: `${SESSION_ID}-new-as-one`,
         new: 1,
         msisdn: TEST_MSISDN,
+        network: TEST_NETWORK,
         message: '',
       });
 
@@ -123,14 +141,7 @@ describe('POST /api/ussd/callback/', () => {
   });
 
   it('completes payment flow on confirm', async () => {
-    axios.post.mockResolvedValue({
-      data: {
-        data: {
-          authorization_url: 'https://pay.moolre.com/ussd-flow',
-          reference: 'MOOLRE-USSD-FLOW',
-        },
-      },
-    });
+    mockMoolreInitiatePayment();
 
     const order = await createOrder(ctx.employee, ctx.customer, service);
     const session = `${SESSION_ID}-pay`;
@@ -147,12 +158,49 @@ describe('POST /api/ussd/callback/', () => {
       reply: false,
     });
 
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/open/transact/payment'),
+      expect.objectContaining({
+        sessionid: session,
+        channel: '13',
+        payer: TEST_MSISDN,
+      }),
+      expect.any(Object)
+    );
+
     const payment = await Payment.findOne({
       where: { order_id: order.id, payment_method: 'ussd' },
       order: [['created_at', 'DESC']],
     });
     expect(payment).not.toBeNull();
     expect(parseFloat(payment.amount)).toBe(10);
+    expect(payment.metadata.moolre_initiate_response).toBeDefined();
+  });
+
+  it('prompts to redial when network is missing at payment confirm', async () => {
+    const order = await createOrder(ctx.employee, ctx.customer, service);
+    const session = `${SESSION_ID}-no-network`;
+
+    await request(app)
+      .post('/api/ussd/callback/')
+      .send({ sessionId: session, new: true, msisdn: TEST_MSISDN, message: '', network: 3 });
+    await ussdRequest(session, { isNew: false, message: '1' });
+    await ussdRequest(session, { isNew: false, message: '1' });
+    await ussdRequest(session, { isNew: false, message: '10' });
+
+    const sessionRow = await require('../../models').UssdSession.findByPk(session);
+    const dataWithoutNetwork = { ...sessionRow.data, network: null };
+    await sessionRow.update({ data: dataWithoutNetwork });
+
+    const res = await request(app)
+      .post('/api/ussd/callback/')
+      .send({ sessionId: session, new: false, msisdn: TEST_MSISDN, message: '1' });
+
+    expect(res.body).toEqual({
+      message: 'Unable to detect mobile network. Please dial again.',
+      reply: false,
+    });
+    expect(order).toBeDefined();
   });
 
   it('ends session when payment is cancelled', async () => {

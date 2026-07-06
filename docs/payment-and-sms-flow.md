@@ -148,7 +148,9 @@ POST https://<your-host>/api/ussd/callback/
 
 Live Moolre may send `application/x-www-form-urlencoded` with the JSON payload embedded as a single form field key (not separate fields). The API normalizes this before handling. The simulator typically sends `application/json` directly. The `new` flag may arrive as `1` or `true` for a new session.
 
-No login or CSRF required for direct payment init:
+**USSD payments use Moolre Initiate Payment** (`POST /open/transact/payment`), not the web payment link. On menu confirm, the server passes the Moolre USSD `sessionId` as `sessionid` to skip OTP and maps `network` to `channel` (3→13 MTN, 5→7 AT, 6→6 Telecel). Network is stored in the USSD session when first received.
+
+Direct API (no menu):
 
 ```
 POST /api/ussd/payments/initialize/
@@ -156,11 +158,18 @@ POST /api/ussd/payments/initialize/
 {
   "phone_number": "0502412618",
   "order_id": 2,
-  "amount": 3.00
+  "amount": 3.00,
+  "network": 6,
+  "session_id": "4708826970"
 }
 ```
 
-Same response shape (`authorization_url`, `externalref`). After Moolre confirms payment via webhook, the same 30% / SMS logic applies.
+- `network` — required (Moolre USSD network code)
+- `session_id` — optional; skips OTP when set
+
+Response has `externalref` and `moolre_message` — no `authorization_url`. Customer receives a Mobile Money PIN prompt on their phone.
+
+Web client payments continue to use **Generate Payment Link** (`POST /embed/link`) via `POST /api/payments/initialize/`.
 
 ## Sequence diagram
 

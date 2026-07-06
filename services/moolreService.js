@@ -45,6 +45,41 @@ async function checkTransactionStatus({ idtype, id }) {
   return response.data;
 }
 
+async function initiatePayment({
+  channel,
+  payer,
+  amount,
+  externalref,
+  sessionid,
+  reference,
+}) {
+  const payload = {
+    type: 1,
+    channel: String(channel),
+    currency: 'GHS',
+    payer,
+    amount: String(amount),
+    externalref,
+    sessionid: sessionid || '',
+    reference: reference || '',
+    accountnumber: moolreConfig.accountNumber,
+  };
+
+  const response = await axios.post(`${moolreConfig.apiBase}/open/transact/payment`, payload, {
+    headers: MOOLRE_HEADERS,
+    timeout: 30000,
+  });
+
+  const data = response.data;
+  if (Number(data.status) !== 1) {
+    const err = new Error(data.message || 'Moolre payment initiation failed');
+    err.code = data.code;
+    err.response = data;
+    throw err;
+  }
+  return data;
+}
+
 async function sendSms({ recipient, message, ref }) {
   const payload = {
     type: 1,
@@ -79,5 +114,6 @@ async function sendSms({ recipient, message, ref }) {
 module.exports = {
   generatePaymentLink,
   checkTransactionStatus,
+  initiatePayment,
   sendSms,
 };

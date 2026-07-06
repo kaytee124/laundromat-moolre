@@ -99,16 +99,22 @@ function buildPaymentHistoryMessage(payments) {
     .join('\n');
 }
 
-function defaultSessionData({ customerId, customerName, phoneNumber }) {
+function defaultSessionData({ customerId, customerName, phoneNumber, network = null }) {
   return {
     customerId,
     customerName,
     phoneNumber,
+    network,
     ordersPage: 0,
     selectedOrderId: null,
     selectedOrderNumber: null,
     paymentAmount: null,
   };
+}
+
+function mergeNetwork(data, network) {
+  if (network == null || network === '') return data;
+  return { ...data, network: Number(network) };
 }
 
 async function deleteExpiredSessions() {
@@ -231,7 +237,7 @@ async function handleEnterAmountStep(sessionId, data, input) {
   };
 }
 
-async function handleConfirmPaymentStep(sessionId, data, input) {
+async function handleConfirmPaymentStep(sessionId, data, input, { moolreSessionId, payerMsisdn } = {}) {
   if (input === '2') {
     await deleteSession(sessionId);
     return { message: 'Payment cancelled', reply: false };
@@ -247,8 +253,22 @@ async function handleConfirmPaymentStep(sessionId, data, input) {
     };
   }
 
+  if (data.network == null || data.network === '') {
+    return {
+      message: 'Unable to detect mobile network. Please dial again.',
+      reply: false,
+    };
+  }
+
   try {
-    await initializePayment(data.phoneNumber, data.selectedOrderId, data.paymentAmount);
+    await initializePayment({
+      phoneNumber: data.phoneNumber,
+      orderId: data.selectedOrderId,
+      amount: data.paymentAmount,
+      moolreSessionId,
+      network: data.network,
+      payerMsisdn,
+    });
     await deleteSession(sessionId);
     return { message: 'Payment is initialized. You will get a prompt.', reply: false };
   } catch (err) {
@@ -261,7 +281,7 @@ async function handleConfirmPaymentStep(sessionId, data, input) {
   }
 }
 
-async function handleUssdRequest({ sessionId, new: isNew, msisdn, message }) {
+async function handleUssdRequest({ sessionId, new: isNew, msisdn, message, network }) {
   const input = String(message ?? '').trim();
 
   if (isNew) {
@@ -274,6 +294,7 @@ async function handleUssdRequest({ sessionId, new: isNew, msisdn, message }) {
       customerId: found.customer.id,
       customerName: found.name,
       phoneNumber: found.phoneNumber,
+      network: network != null && network !== '' ? Number(network) : null,
     });
     return showMainMenu(sessionId, data);
   }
@@ -283,7 +304,11 @@ async function handleUssdRequest({ sessionId, new: isNew, msisdn, message }) {
     return { message: 'Session expired', reply: false };
   }
 
-  const data = session.data;
+  const data = mergeNetwork(session.data, network);
+  if (data.network !== session.data.network) {
+    await saveSession(sessionId, session.step, data);
+  }
+
   switch (session.step) {
     case STEPS.MAIN:
       return handleMainStep(sessionId, data, input);
@@ -292,7 +317,10 @@ async function handleUssdRequest({ sessionId, new: isNew, msisdn, message }) {
     case STEPS.ENTER_AMOUNT:
       return handleEnterAmountStep(sessionId, data, input);
     case STEPS.CONFIRM_PAYMENT:
-      return handleConfirmPaymentStep(sessionId, data, input);
+      return handleConfirmPaymentStep(sessionId, data, input, {
+        moolreSessionId: sessionId,
+        payerMsisdn: msisdn,
+      });
     default:
       await deleteSession(sessionId);
       return { message: 'Session expired', reply: false };
@@ -325,8 +353,19 @@ async function getOrderbyPhoneNumber(phoneNumber) {
   };
 }
 
-async function initializePayment(phoneNumber, orderId, amount) {
-  return paymentService.initializePaymentForUssd(phoneNumber, orderId, amount);
+async function initializePayment({
+  phoneNumber,
+  orderId,
+  amount,
+  moolreSessionId,
+  network,
+  payerMsisdn,
+}) {
+  return paymentService.initializePaymentForUssd(phoneNumber, orderId, amount, {
+    moolreSessionId,
+    network,
+    payerMsisdn,
+  });
 }
 
 module.exports = {

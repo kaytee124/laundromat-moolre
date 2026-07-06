@@ -4457,7 +4457,7 @@
           "Ussd"
         ],
         "summary": "Initialize Moolre payment via USSD (no auth)",
-        "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required. Same Moolre payment and post-confirmation side effects as the client flow (including 30% auto-`in_progress` and customer SMS after webhook confirms payment).",
+        "description": "**Required auth:** None (customer identified by phone_number)\n\nIdentifies the customer by phone number. No JWT required. Uses Moolre Initiate Payment (`POST /open/transact/payment`) — not the web payment link. Requires `network` (Moolre USSD code: 3=MTN, 5=AT, 6=Telecel). Optional `session_id` skips OTP when set to the Moolre USSD session id. Post-confirmation side effects match the client flow (30% auto-`in_progress`, customer SMS).",
         "requestBody": {
           "required": true,
           "content": {
@@ -4468,33 +4468,36 @@
               "example": {
                 "phone_number": "0200000001",
                 "order_id": 1,
-                "amount": 50
+                "amount": 50,
+                "network": 6,
+                "session_id": "4708826970"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Payment initialized",
+            "description": "USSD push payment initiated",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentInitializeResponse"
+                  "$ref": "#/components/schemas/UssdPaymentInitializeResponse"
                 },
                 "example": {
                   "status": "success",
                   "message": "Payment initialized successfully",
                   "data": {
-                    "authorization_url": "https://pay.moolre.com/example",
                     "externalref": "PAY-1-ABC123456789",
-                    "payment_id": 1
+                    "payment_id": 1,
+                    "moolre_code": "TP00",
+                    "moolre_message": "Payment request sent"
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Validation",
             "content": {
               "application/json": {
                 "schema": {
@@ -4508,10 +4511,24 @@
                       "status_code": 400
                     }
                   },
-                  "MISSING_FIELDS": {
+                  "ORDER_ALREADY_PAID": {
                     "value": {
-                      "error_code": "MISSING_FIELDS",
-                      "message": "Username and password are required",
+                      "error_code": "ORDER_ALREADY_PAID",
+                      "message": "This order has already been fully paid",
+                      "status_code": 400
+                    }
+                  },
+                  "NO_AMOUNT_DUE": {
+                    "value": {
+                      "error_code": "NO_AMOUNT_DUE",
+                      "message": "No amount due for this order",
+                      "status_code": 400
+                    }
+                  },
+                  "AMOUNT_EXCEEDS_BALANCE": {
+                    "value": {
+                      "error_code": "AMOUNT_EXCEEDS_BALANCE",
+                      "message": "Payment amount cannot exceed remaining balance",
                       "status_code": 400
                     }
                   }
@@ -4520,7 +4537,7 @@
             }
           },
           "404": {
-            "description": "Customer not found",
+            "description": "Customer or order not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -4531,6 +4548,13 @@
                     "value": {
                       "error_code": "CUSTOMER_NOT_FOUND",
                       "message": "Customer profile not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
                       "status_code": 404
                     }
                   }
@@ -6346,7 +6370,8 @@
         "required": [
           "phone_number",
           "order_id",
-          "amount"
+          "amount",
+          "network"
         ],
         "properties": {
           "phone_number": {
@@ -6358,6 +6383,47 @@
           },
           "amount": {
             "type": "number"
+          },
+          "network": {
+            "type": "integer",
+            "description": "Moolre USSD network: 3=MTN, 5=AT, 6=Telecel"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Moolre USSD session id — when set, passed as sessionid to skip OTP"
+          }
+        }
+      },
+      "UssdPaymentInitializeData": {
+        "type": "object",
+        "properties": {
+          "externalref": {
+            "type": "string",
+            "description": "Our idtype-1 reference for polling"
+          },
+          "payment_id": {
+            "type": "integer"
+          },
+          "moolre_code": {
+            "type": "string",
+            "nullable": true
+          },
+          "moolre_message": {
+            "type": "string"
+          }
+        }
+      },
+      "UssdPaymentInitializeResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UssdPaymentInitializeData"
           }
         }
       },
