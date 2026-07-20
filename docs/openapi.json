@@ -143,7 +143,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "requires_password_change": false
                 }
@@ -657,9 +661,17 @@
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "status": "active",
+                    "updated_by_name": null,
                     "phone_number": "0200000001",
+                    "whatsapp_number": "0200000002",
+                    "address": "123 Test St",
+                    "preferred_contact_method": "phone",
+                    "notes": "no note",
                     "total_orders": 3,
-                    "total_spent": "150.00"
+                    "total_spent": "150.00",
+                    "last_order_date": "2026-07-18T14:00:00.000Z",
+                    "customer_created_by_name": null,
+                    "customer_updated_by_name": null
                   }
                 }
               }
@@ -733,7 +745,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -812,6 +828,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StaffCreateRequest"
+              },
+              "example": {
+                "username": "newadmin",
+                "first_name": "New",
+                "last_name": "Admin"
               }
             }
           }
@@ -834,7 +855,11 @@
                     "role": "admin",
                     "is_active": true,
                     "is_staff": true,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "default_password": "TempPass123!",
                   "note": "User should change password on first login"
@@ -955,7 +980,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -1060,7 +1089,11 @@
                     "role": "employee",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -1165,6 +1198,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StaffCreateRequest"
+              },
+              "example": {
+                "username": "newemployee",
+                "first_name": "New",
+                "last_name": "Employee"
               }
             }
           }
@@ -1187,7 +1225,11 @@
                     "role": "employee",
                     "is_active": true,
                     "is_staff": true,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "default_password": "TempPass123!",
                   "note": "User should change password on first login"
@@ -1308,7 +1350,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -1413,7 +1459,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -1536,6 +1586,10 @@
                     "is_active": true,
                     "is_staff": false,
                     "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null,
                     "status": "active",
                     "phone_number": "0200000001",
                     "customer": {
@@ -1641,6 +1695,10 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/StaffCreateRequest"
+              },
+              "example": {
+                "username": "newsuper",
+                "first_name": "New"
               }
             }
           }
@@ -1663,7 +1721,11 @@
                     "role": "superadmin",
                     "is_active": true,
                     "is_staff": true,
-                    "is_superuser": true
+                    "is_superuser": true,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "default_password": "TempPass123!",
                   "note": "User should change password on first login"
@@ -1777,7 +1839,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -1882,7 +1948,11 @@
                     "role": "admin",
                     "is_active": true,
                     "is_staff": true,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -2013,7 +2083,11 @@
                     "role": "employee",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -2144,7 +2218,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   }
                 }
               }
@@ -2267,6 +2345,10 @@
                     "is_active": true,
                     "is_staff": false,
                     "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null,
                     "status": "active",
                     "phone_number": "0200000001",
                     "customer": {
@@ -2711,8 +2793,13 @@
                       "status": "active",
                       "username": "client1",
                       "phone_number": "0200000001",
+                      "whatsapp_number": "0200000002",
+                      "address": "123 Test St",
+                      "preferred_contact_method": "phone",
+                      "notes": "no note",
                       "total_orders": 3,
                       "total_spent": "150.00",
+                      "last_order_date": "2026-07-15T14:00:00.000Z",
                       "customer": {
                         "id": 1
                       }
@@ -2795,7 +2882,6 @@
                 "username": "newclient",
                 "password": "securepass1",
                 "first_name": "New",
-                "last_name": "Client",
                 "phone_number": "0200000099",
                 "whatsapp_number": "0200000099",
                 "address": "123 Main St",
@@ -2822,7 +2908,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "customer": {
                     "id": 1
@@ -2931,6 +3021,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CustomerStaffCreateRequest"
+              },
+              "example": {
+                "username": "staffcreated",
+                "first_name": "Staff",
+                "last_name": "Created",
+                "phone_number": "0200000088",
+                "whatsapp_number": "0200000088",
+                "address": "88 Staff St",
+                "preferred_contact_method": "whatsapp"
               }
             }
           }
@@ -2953,7 +3052,11 @@
                     "role": "client",
                     "is_active": true,
                     "is_staff": false,
-                    "is_superuser": false
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
                   },
                   "customer": {
                     "id": 1
@@ -3064,15 +3167,21 @@
                 },
                 "example": {
                   "status": "success",
-                  "data": [
-                    {
-                      "id": 1,
-                      "name": "Wash & Fold",
-                      "description": "Standard laundry service",
-                      "category": "wash",
-                      "status": "active"
-                    }
-                  ]
+                  "data": {
+                    "count": 1,
+                    "page": 1,
+                    "page_size": 20,
+                    "total_pages": 1,
+                    "results": [
+                      {
+                        "id": 1,
+                        "name": "Wash & Fold",
+                        "description": "Standard laundry service",
+                        "category": "wash",
+                        "status": "active"
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -3526,6 +3635,7 @@
                         "id": 1,
                         "order_number": "ORD-ABC12345",
                         "customer_id": 1,
+                        "customer": 1,
                         "customer_username": "client1",
                         "customer_name": "Jane Doe",
                         "assigned_to": 2,
@@ -3535,11 +3645,20 @@
                         "total_amount": "89.50",
                         "amount_paid": "0.00",
                         "discount_amount": "5.00",
+                        "delivery_notes": null,
+                        "special_instructions": null,
+                        "pickup_date": null,
                         "delivery_date": "2026-07-22",
                         "delivery_time": "14:30:00",
                         "estimated_completion_date": "2026-07-21",
+                        "completed_at": null,
                         "picked_up": false,
                         "picked_up_at": null,
+                        "created_by": 2,
+                        "created_by_username": "employee1",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z",
+                        "updated_by": null,
                         "service_ids": [
                           1,
                           3
@@ -3568,7 +3687,9 @@
                             "clean_quantity": 0,
                             "unit_price": "12.50",
                             "subtotal": "62.50",
-                            "notes": ""
+                            "notes": "",
+                            "created_at": "2026-07-20T09:00:00.000Z",
+                            "updated_at": "2026-07-20T09:00:00.000Z"
                           },
                           {
                             "id": 2,
@@ -3577,7 +3698,9 @@
                             "clean_quantity": 4,
                             "unit_price": "8.00",
                             "subtotal": "32.00",
-                            "notes": "press only"
+                            "notes": "press only",
+                            "created_at": "2026-07-20T09:00:00.000Z",
+                            "updated_at": "2026-07-20T09:00:00.000Z"
                           }
                         ]
                       }
@@ -3705,6 +3828,7 @@
                     "id": 1,
                     "order_number": "ORD-ABC12345",
                     "customer_id": 1,
+                    "customer": 1,
                     "customer_username": "client1",
                     "customer_name": "Jane Doe",
                     "assigned_to": 2,
@@ -3714,11 +3838,20 @@
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
                     "discount_amount": "5.00",
+                    "delivery_notes": null,
+                    "special_instructions": null,
+                    "pickup_date": null,
                     "delivery_date": "2026-07-22",
                     "delivery_time": "14:30:00",
                     "estimated_completion_date": "2026-07-21",
+                    "completed_at": null,
                     "picked_up": false,
                     "picked_up_at": null,
+                    "created_by": 2,
+                    "created_by_username": "employee1",
+                    "created_at": "2026-07-20T09:00:00.000Z",
+                    "updated_at": "2026-07-20T09:00:00.000Z",
+                    "updated_by": null,
                     "service_ids": [
                       1,
                       3
@@ -3747,7 +3880,9 @@
                         "clean_quantity": 0,
                         "unit_price": "12.50",
                         "subtotal": "62.50",
-                        "notes": ""
+                        "notes": "",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       },
                       {
                         "id": 2,
@@ -3756,7 +3891,9 @@
                         "clean_quantity": 4,
                         "unit_price": "8.00",
                         "subtotal": "32.00",
-                        "notes": "press only"
+                        "notes": "press only",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       }
                     ]
                   }
@@ -3869,6 +4006,7 @@
                     "id": 1,
                     "order_number": "ORD-ABC12345",
                     "customer_id": 1,
+                    "customer": 1,
                     "customer_username": "client1",
                     "customer_name": "Jane Doe",
                     "assigned_to": 2,
@@ -3878,11 +4016,20 @@
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
                     "discount_amount": "5.00",
+                    "delivery_notes": null,
+                    "special_instructions": null,
+                    "pickup_date": null,
                     "delivery_date": "2026-07-22",
                     "delivery_time": "14:30:00",
                     "estimated_completion_date": "2026-07-21",
+                    "completed_at": null,
                     "picked_up": false,
                     "picked_up_at": null,
+                    "created_by": 2,
+                    "created_by_username": "employee1",
+                    "created_at": "2026-07-20T09:00:00.000Z",
+                    "updated_at": "2026-07-20T09:00:00.000Z",
+                    "updated_by": null,
                     "service_ids": [
                       1,
                       3
@@ -3911,7 +4058,9 @@
                         "clean_quantity": 0,
                         "unit_price": "12.50",
                         "subtotal": "62.50",
-                        "notes": ""
+                        "notes": "",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       },
                       {
                         "id": 2,
@@ -3920,7 +4069,9 @@
                         "clean_quantity": 4,
                         "unit_price": "8.00",
                         "subtotal": "32.00",
-                        "notes": "press only"
+                        "notes": "press only",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       }
                     ]
                   }
@@ -4051,6 +4202,7 @@
                     "id": 1,
                     "order_number": "ORD-ABC12345",
                     "customer_id": 1,
+                    "customer": 1,
                     "customer_username": "client1",
                     "customer_name": "Jane Doe",
                     "assigned_to": 2,
@@ -4060,11 +4212,20 @@
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
                     "discount_amount": "5.00",
+                    "delivery_notes": null,
+                    "special_instructions": null,
+                    "pickup_date": null,
                     "delivery_date": "2026-07-22",
                     "delivery_time": "14:30:00",
                     "estimated_completion_date": "2026-07-21",
+                    "completed_at": null,
                     "picked_up": false,
                     "picked_up_at": null,
+                    "created_by": 2,
+                    "created_by_username": "employee1",
+                    "created_at": "2026-07-20T09:00:00.000Z",
+                    "updated_at": "2026-07-20T09:00:00.000Z",
+                    "updated_by": null,
                     "service_ids": [
                       1,
                       3
@@ -4093,7 +4254,9 @@
                         "clean_quantity": 0,
                         "unit_price": "12.50",
                         "subtotal": "62.50",
-                        "notes": ""
+                        "notes": "",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       },
                       {
                         "id": 2,
@@ -4102,7 +4265,9 @@
                         "clean_quantity": 4,
                         "unit_price": "8.00",
                         "subtotal": "32.00",
-                        "notes": "press only"
+                        "notes": "press only",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
                       }
                     ]
                   }
@@ -5231,6 +5396,23 @@
           },
           "is_superuser": {
             "type": "boolean"
+          },
+          "last_login": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "date_joined": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "integer",
+            "nullable": true
           }
         }
       },
@@ -5276,7 +5458,11 @@
             "role": "client",
             "is_active": true,
             "is_staff": false,
-            "is_superuser": false
+            "is_superuser": false,
+            "last_login": "2026-07-20T12:00:00.000Z",
+            "date_joined": "2026-01-01T10:00:00.000Z",
+            "updated_at": "2026-07-20T12:00:00.000Z",
+            "updated_by": null
           },
           "requires_password_change": false
         }
@@ -5352,6 +5538,10 @@
           "status": {
             "type": "string"
           },
+          "updated_by_name": {
+            "type": "string",
+            "nullable": true
+          },
           "phone_number": {
             "type": "string",
             "nullable": true
@@ -5382,6 +5572,14 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "customer_created_by_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_updated_by_name": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -5402,9 +5600,17 @@
             "first_name": "Jane",
             "last_name": "Doe",
             "status": "active",
+            "updated_by_name": null,
             "phone_number": "0200000001",
+            "whatsapp_number": "0200000002",
+            "address": "123 Test St",
+            "preferred_contact_method": "phone",
+            "notes": "no note",
             "total_orders": 3,
-            "total_spent": "150.00"
+            "total_spent": "150.00",
+            "last_order_date": "2026-07-18T14:00:00.000Z",
+            "customer_created_by_name": null,
+            "customer_updated_by_name": null
           }
         }
       },
@@ -5428,13 +5634,20 @@
             "role": "client",
             "is_active": true,
             "is_staff": false,
-            "is_superuser": false
+            "is_superuser": false,
+            "last_login": "2026-07-20T12:00:00.000Z",
+            "date_joined": "2026-01-01T10:00:00.000Z",
+            "updated_at": "2026-07-20T12:00:00.000Z",
+            "updated_by": null
           }
         }
       },
       "ClientSelfUpdateRequest": {
         "type": "object",
         "properties": {
+          "username": {
+            "type": "string"
+          },
           "first_name": {
             "type": "string"
           },
@@ -5503,7 +5716,11 @@
             "role": "admin",
             "is_active": true,
             "is_staff": true,
-            "is_superuser": false
+            "is_superuser": false,
+            "last_login": "2026-07-20T12:00:00.000Z",
+            "date_joined": "2026-01-01T10:00:00.000Z",
+            "updated_at": "2026-07-20T12:00:00.000Z",
+            "updated_by": null
           },
           "default_password": "TempPass123!",
           "note": "User should change password on first login"
@@ -5567,28 +5784,90 @@
         }
       },
       "StaffUserDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "superadmin",
+              "admin",
+              "employee",
+              "client"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_staff": {
+            "type": "boolean"
+          },
+          "phone_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "whatsapp_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "preferred_contact_method": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "total_orders": {
+            "type": "integer"
+          },
+          "total_spent": {
+            "type": "string"
+          },
+          "last_order_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "customer": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            },
+            "nullable": true
+          }
+        }
+      },
+      "SuperadminUserDetail": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/User"
+            "$ref": "#/components/schemas/StaffUserDetail"
           },
           {
             "type": "object",
             "properties": {
-              "status": {
-                "type": "string"
-              },
-              "phone_number": {
-                "type": "string",
-                "nullable": true
-              },
-              "customer": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "integer"
-                  }
-                },
-                "nullable": true
+              "is_superuser": {
+                "type": "boolean"
               }
             }
           }
@@ -5612,7 +5891,7 @@
             "type": "string"
           },
           "user": {
-            "$ref": "#/components/schemas/StaffUserDetail"
+            "$ref": "#/components/schemas/SuperadminUserDetail"
           }
         }
       },
@@ -5648,11 +5927,32 @@
                 "type": "string",
                 "nullable": true
               },
+              "whatsapp_number": {
+                "type": "string",
+                "nullable": true
+              },
+              "address": {
+                "type": "string",
+                "nullable": true
+              },
+              "preferred_contact_method": {
+                "type": "string",
+                "nullable": true
+              },
+              "notes": {
+                "type": "string",
+                "nullable": true
+              },
               "total_orders": {
                 "type": "integer"
               },
               "total_spent": {
                 "type": "string"
+              },
+              "last_order_date": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
               },
               "customer": {
                 "type": "object",
@@ -5739,8 +6039,13 @@
               "status": "active",
               "username": "client1",
               "phone_number": "0200000001",
+              "whatsapp_number": "0200000002",
+              "address": "123 Test St",
+              "preferred_contact_method": "phone",
+              "notes": "no note",
               "total_orders": 3,
               "total_spent": "150.00",
+              "last_order_date": "2026-07-15T14:00:00.000Z",
               "customer": {
                 "id": 1
               }
@@ -5819,7 +6124,11 @@
             "role": "client",
             "is_active": true,
             "is_staff": false,
-            "is_superuser": false
+            "is_superuser": false,
+            "last_login": "2026-07-20T12:00:00.000Z",
+            "date_joined": "2026-01-01T10:00:00.000Z",
+            "updated_at": "2026-07-20T12:00:00.000Z",
+            "updated_by": null
           },
           "customer": {
             "id": 1
@@ -5898,7 +6207,11 @@
             "role": "client",
             "is_active": true,
             "is_staff": false,
-            "is_superuser": false
+            "is_superuser": false,
+            "last_login": "2026-07-20T12:00:00.000Z",
+            "date_joined": "2026-01-01T10:00:00.000Z",
+            "updated_at": "2026-07-20T12:00:00.000Z",
+            "updated_by": null
           },
           "customer": {
             "id": 1
@@ -5941,23 +6254,46 @@
             "example": "success"
           },
           "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Service"
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Service"
+                }
+              }
             }
           }
         },
         "example": {
           "status": "success",
-          "data": [
-            {
-              "id": 1,
-              "name": "Wash & Fold",
-              "description": "Standard laundry service",
-              "category": "wash",
-              "status": "active"
-            }
-          ]
+          "data": {
+            "count": 1,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 1,
+            "results": [
+              {
+                "id": 1,
+                "name": "Wash & Fold",
+                "description": "Standard laundry service",
+                "category": "wash",
+                "status": "active"
+              }
+            ]
+          }
         }
       },
       "ServiceDetailResponse": {
@@ -6075,6 +6411,14 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -6115,6 +6459,10 @@
           },
           "customer_id": {
             "type": "integer"
+          },
+          "customer": {
+            "type": "integer",
+            "description": "Same as customer_id"
           },
           "customer_username": {
             "type": "string",
@@ -6186,6 +6534,26 @@
           "picked_up_at": {
             "type": "string",
             "format": "date-time",
+            "nullable": true
+          },
+          "created_by": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_by_username": {
+            "type": "string",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "integer",
             "nullable": true
           },
           "service_ids": {
@@ -6437,6 +6805,7 @@
             "id": 1,
             "order_number": "ORD-ABC12345",
             "customer_id": 1,
+            "customer": 1,
             "customer_username": "client1",
             "customer_name": "Jane Doe",
             "assigned_to": 2,
@@ -6446,11 +6815,20 @@
             "total_amount": "89.50",
             "amount_paid": "0.00",
             "discount_amount": "5.00",
+            "delivery_notes": null,
+            "special_instructions": null,
+            "pickup_date": null,
             "delivery_date": "2026-07-22",
             "delivery_time": "14:30:00",
             "estimated_completion_date": "2026-07-21",
+            "completed_at": null,
             "picked_up": false,
             "picked_up_at": null,
+            "created_by": 2,
+            "created_by_username": "employee1",
+            "created_at": "2026-07-20T09:00:00.000Z",
+            "updated_at": "2026-07-20T09:00:00.000Z",
+            "updated_by": null,
             "service_ids": [
               1,
               3
@@ -6479,7 +6857,9 @@
                 "clean_quantity": 0,
                 "unit_price": "12.50",
                 "subtotal": "62.50",
-                "notes": ""
+                "notes": "",
+                "created_at": "2026-07-20T09:00:00.000Z",
+                "updated_at": "2026-07-20T09:00:00.000Z"
               },
               {
                 "id": 2,
@@ -6488,7 +6868,9 @@
                 "clean_quantity": 4,
                 "unit_price": "8.00",
                 "subtotal": "32.00",
-                "notes": "press only"
+                "notes": "press only",
+                "created_at": "2026-07-20T09:00:00.000Z",
+                "updated_at": "2026-07-20T09:00:00.000Z"
               }
             ]
           }

@@ -79,6 +79,10 @@ const EXAMPLE_USER = {
   is_active: true,
   is_staff: false,
   is_superuser: false,
+  last_login: '2026-07-20T12:00:00.000Z',
+  date_joined: '2026-01-01T10:00:00.000Z',
+  updated_at: '2026-07-20T12:00:00.000Z',
+  updated_by: null,
 };
 
 const EXAMPLE_SERVICE = {
@@ -93,6 +97,7 @@ const EXAMPLE_ORDER = {
   id: 1,
   order_number: 'ORD-ABC12345',
   customer_id: 1,
+  customer: 1,
   customer_username: 'client1',
   customer_name: 'Jane Doe',
   assigned_to: 2,
@@ -102,11 +107,20 @@ const EXAMPLE_ORDER = {
   total_amount: '89.50',
   amount_paid: '0.00',
   discount_amount: '5.00',
+  delivery_notes: null,
+  special_instructions: null,
+  pickup_date: null,
   delivery_date: '2026-07-22',
   delivery_time: '14:30:00',
   estimated_completion_date: '2026-07-21',
+  completed_at: null,
   picked_up: false,
   picked_up_at: null,
+  created_by: 2,
+  created_by_username: 'employee1',
+  created_at: '2026-07-20T09:00:00.000Z',
+  updated_at: '2026-07-20T09:00:00.000Z',
+  updated_by: null,
   service_ids: [1, 3],
   services: [
     {
@@ -133,6 +147,8 @@ const EXAMPLE_ORDER = {
       unit_price: '12.50',
       subtotal: '62.50',
       notes: '',
+      created_at: '2026-07-20T09:00:00.000Z',
+      updated_at: '2026-07-20T09:00:00.000Z',
     },
     {
       id: 2,
@@ -142,6 +158,8 @@ const EXAMPLE_ORDER = {
       unit_price: '8.00',
       subtotal: '32.00',
       notes: 'press only',
+      created_at: '2026-07-20T09:00:00.000Z',
+      updated_at: '2026-07-20T09:00:00.000Z',
     },
   ],
 };
@@ -1409,6 +1427,10 @@ const spec = {
           is_active: { type: 'boolean' },
           is_staff: { type: 'boolean' },
           is_superuser: { type: 'boolean' },
+          last_login: { type: 'string', format: 'date-time', nullable: true },
+          date_joined: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          updated_by: { type: 'integer', nullable: true },
         },
       },
       LoginRequest: {
@@ -1465,6 +1487,7 @@ const spec = {
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           status: { type: 'string' },
+          updated_by_name: { type: 'string', nullable: true },
           phone_number: { type: 'string', nullable: true },
           whatsapp_number: { type: 'string', nullable: true },
           address: { type: 'string', nullable: true },
@@ -1473,6 +1496,8 @@ const spec = {
           total_orders: { type: 'integer' },
           total_spent: { type: 'string' },
           last_order_date: { type: 'string', format: 'date-time', nullable: true },
+          customer_created_by_name: { type: 'string', nullable: true },
+          customer_updated_by_name: { type: 'string', nullable: true },
         },
       },
       ProfileResponse: {
@@ -1492,6 +1517,7 @@ const spec = {
       ClientSelfUpdateRequest: {
         type: 'object',
         properties: {
+          username: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           phone_number: { type: 'string' },
@@ -1548,14 +1574,37 @@ const spec = {
         },
       },
       StaffUserDetail: {
-        allOf: [{ $ref: '#/components/schemas/User' }, {
-          type: 'object',
-          properties: {
-            status: { type: 'string' },
-            phone_number: { type: 'string', nullable: true },
-            customer: { type: 'object', properties: { id: { type: 'integer' } }, nullable: true },
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          username: { type: 'string' },
+          first_name: { type: 'string' },
+          last_name: { type: 'string' },
+          role: { type: 'string', enum: ['superadmin', 'admin', 'employee', 'client'] },
+          status: { type: 'string' },
+          is_active: { type: 'boolean' },
+          is_staff: { type: 'boolean' },
+          phone_number: { type: 'string', nullable: true },
+          whatsapp_number: { type: 'string', nullable: true },
+          address: { type: 'string', nullable: true },
+          preferred_contact_method: { type: 'string', nullable: true },
+          notes: { type: 'string', nullable: true },
+          total_orders: { type: 'integer' },
+          total_spent: { type: 'string' },
+          last_order_date: { type: 'string', format: 'date-time', nullable: true },
+          customer: { type: 'object', properties: { id: { type: 'integer' } }, nullable: true },
+        },
+      },
+      SuperadminUserDetail: {
+        allOf: [
+          { $ref: '#/components/schemas/StaffUserDetail' },
+          {
+            type: 'object',
+            properties: {
+              is_superuser: { type: 'boolean' },
+            },
           },
-        }],
+        ],
       },
       StaffUserDetailResponse: {
         type: 'object',
@@ -1568,7 +1617,7 @@ const spec = {
         type: 'object',
         properties: {
           message: { type: 'string' },
-          user: { $ref: '#/components/schemas/StaffUserDetail' },
+          user: { $ref: '#/components/schemas/SuperadminUserDetail' },
         },
       },
       UserListItem: {
@@ -1586,8 +1635,13 @@ const spec = {
           properties: {
             username: { type: 'string' },
             phone_number: { type: 'string', nullable: true },
+            whatsapp_number: { type: 'string', nullable: true },
+            address: { type: 'string', nullable: true },
+            preferred_contact_method: { type: 'string', nullable: true },
+            notes: { type: 'string', nullable: true },
             total_orders: { type: 'integer' },
             total_spent: { type: 'string' },
+            last_order_date: { type: 'string', format: 'date-time', nullable: true },
             customer: { type: 'object', properties: { id: { type: 'integer' } }, nullable: true },
           },
         }],
@@ -1677,7 +1731,16 @@ const spec = {
         type: 'object',
         properties: {
           status: { type: 'string', example: 'success' },
-          data: { type: 'array', items: { $ref: '#/components/schemas/Service' } },
+          data: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer' },
+              page: { type: 'integer' },
+              page_size: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              results: { type: 'array', items: { $ref: '#/components/schemas/Service' } },
+            },
+          },
         },
       },
       ServiceDetailResponse: {
@@ -1724,6 +1787,8 @@ const spec = {
           unit_price: { type: 'string' },
           subtotal: { type: 'string' },
           notes: { type: 'string', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
         },
       },
       OrderServiceSummary: {
@@ -1742,6 +1807,7 @@ const spec = {
           id: { type: 'integer' },
           order_number: { type: 'string' },
           customer_id: { type: 'integer' },
+          customer: { type: 'integer', description: 'Same as customer_id' },
           customer_username: { type: 'string', nullable: true },
           customer_name: { type: 'string', nullable: true },
           assigned_to: { type: 'integer', nullable: true },
@@ -1760,6 +1826,11 @@ const spec = {
           completed_at: { type: 'string', format: 'date-time', nullable: true },
           picked_up: { type: 'boolean' },
           picked_up_at: { type: 'string', format: 'date-time', nullable: true },
+          created_by: { type: 'integer', nullable: true },
+          created_by_username: { type: 'string', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+          updated_by: { type: 'integer', nullable: true },
           service_ids: { type: 'array', items: { type: 'integer' } },
           services: { type: 'array', items: { $ref: '#/components/schemas/OrderServiceSummary' } },
           order_items: { type: 'array', items: { $ref: '#/components/schemas/OrderItem' } },
@@ -2165,8 +2236,13 @@ const EXAMPLE_PAGINATED_CLIENTS = {
     status: 'active',
     username: 'client1',
     phone_number: '0200000001',
+    whatsapp_number: '0200000002',
+    address: '123 Test St',
+    preferred_contact_method: 'phone',
+    notes: 'no note',
     total_orders: 3,
     total_spent: '150.00',
+    last_order_date: '2026-07-15T14:00:00.000Z',
     customer: { id: 1 },
   }],
 };
@@ -2210,7 +2286,16 @@ function applyDocumentation(openApiSpec) {
     default_password: 'TempPass123!',
     note: 'User should change password on first login',
   };
-  schemas.ServiceListResponse.example = { status: 'success', data: [EXAMPLE_SERVICE] };
+  schemas.ServiceListResponse.example = {
+    status: 'success',
+    data: {
+      count: 1,
+      page: 1,
+      page_size: 20,
+      total_pages: 1,
+      results: [EXAMPLE_SERVICE],
+    },
+  };
   schemas.ServiceDetailResponse.example = { status: 'success', data: EXAMPLE_SERVICE };
   schemas.ServiceMutationResponse.example = {
     status: 'success',
@@ -2239,10 +2324,18 @@ function applyDocumentation(openApiSpec) {
       username: 'client1',
       first_name: 'Jane',
       last_name: 'Doe',
-        status: 'active',
+      status: 'active',
+      updated_by_name: null,
       phone_number: '0200000001',
+      whatsapp_number: '0200000002',
+      address: '123 Test St',
+      preferred_contact_method: 'phone',
+      notes: 'no note',
       total_orders: 3,
       total_spent: '150.00',
+      last_order_date: '2026-07-18T14:00:00.000Z',
+      customer_created_by_name: null,
+      customer_updated_by_name: null,
     },
   };
   schemas.ProfileUpdateResponse.example = {
@@ -2423,15 +2516,37 @@ function applyDocumentation(openApiSpec) {
       username: 'client1',
       password: 'secretpassword',
     },
+    [opKey('/api/accounts/admin/create/', 'post')]: {
+      username: 'newadmin',
+      first_name: 'New',
+      last_name: 'Admin',
+    },
+    [opKey('/api/accounts/employee/create/', 'post')]: {
+      username: 'newemployee',
+      first_name: 'New',
+      last_name: 'Employee',
+    },
+    [opKey('/api/accounts/superadmin/create/', 'post')]: {
+      username: 'newsuper',
+      first_name: 'New',
+    },
     [opKey('/api/customers/register/', 'post')]: {
       username: 'newclient',
       password: 'securepass1',
       first_name: 'New',
-      last_name: 'Client',
       phone_number: '0200000099',
       whatsapp_number: '0200000099',
       address: '123 Main St',
       preferred_contact_method: 'phone',
+    },
+    [opKey('/api/customers/create/', 'post')]: {
+      username: 'staffcreated',
+      first_name: 'Staff',
+      last_name: 'Created',
+      phone_number: '0200000088',
+      whatsapp_number: '0200000088',
+      address: '88 Staff St',
+      preferred_contact_method: 'whatsapp',
     },
     [opKey('/api/ussd/callback/', 'post')]: {
       sessionId: 'sess-abc-123',
