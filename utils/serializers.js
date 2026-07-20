@@ -20,7 +20,6 @@ function formatUserListItem(user) {
     id: user.id,
     first_name: user.first_name,
     last_name: user.last_name,
-    email: user.email,
     status: getStatus(user),
   };
 }
@@ -32,7 +31,6 @@ function formatClientListItem(user, customer) {
     username: user.username,
     first_name: user.first_name,
     last_name: user.last_name,
-    email: user.email,
     status: getStatus(user),
     phone_number: profile?.phone_number || null,
     whatsapp_number: profile?.whatsapp_number || null,
@@ -52,7 +50,6 @@ function formatUserProfile(user, customer) {
     username: user.username,
     first_name: user.first_name,
     last_name: user.last_name,
-    email: user.email,
     status: getStatus(user),
     updated_by_name: user.updater ? getUserName(user.updater) : null,
     phone_number: null,
@@ -90,7 +87,6 @@ function formatStaffUserDetail(user, customer) {
     username: user.username,
     first_name: user.first_name,
     last_name: user.last_name,
-    email: user.email,
     role: user.role,
     status: getStatus(user),
     is_active: user.is_active,
@@ -114,7 +110,6 @@ function formatSuperadminUserDetail(user, customer) {
     username: user.username,
     first_name: user.first_name,
     last_name: user.last_name,
-    email: user.email,
     role: user.role,
     status: getStatus(user),
     is_active: user.is_active,
@@ -155,25 +150,56 @@ function formatOrder(order) {
     special_instructions: order.special_instructions,
     pickup_date: order.pickup_date,
     delivery_date: order.delivery_date,
+    delivery_time: formatDeliveryTime(order.delivery_time),
     estimated_completion_date: order.estimated_completion_date,
     completed_at: order.completed_at,
+    picked_up: Boolean(order.picked_up),
+    picked_up_at: order.picked_up_at || null,
     created_by: order.created_by,
     created_by_username: order.creator?.username || null,
     created_at: order.created_at,
     updated_at: order.updated_at,
     updated_by: order.updated_by,
+    service_ids: getOrderServiceIds(order),
+    services: getOrderServices(order),
     order_items: (order.order_items || []).map(formatOrderItem),
   };
+}
+
+function getOrderServices(order) {
+  if (order.services?.length) {
+    return order.services.map(formatSlimService);
+  }
+  return (order.order_services || [])
+    .map((row) => row.service)
+    .filter(Boolean)
+    .map(formatSlimService);
+}
+
+function getOrderServiceIds(order) {
+  if (order.services?.length) {
+    return order.services.map((s) => s.id);
+  }
+  return (order.order_services || []).map((row) => row.service_id).filter((id) => id != null);
+}
+
+function formatDeliveryTime(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') {
+    return value.length >= 8 ? value.slice(0, 8) : value;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(11, 19);
+  }
+  return String(value);
 }
 
 function formatOrderItem(item) {
   return {
     id: item.id,
-    service_id: item.service_id,
-    service_name: item.service?.name || null,
     item_name: item.item_name,
-    description: item.description,
-    quantity: item.quantity,
+    dirty_quantity: item.dirty_quantity,
+    clean_quantity: item.clean_quantity,
     unit_price: String(item.unit_price),
     subtotal: String(item.subtotal),
     notes: item.notes,
@@ -182,17 +208,18 @@ function formatOrderItem(item) {
   };
 }
 
-function formatService(service) {
+function formatSlimService(service) {
   return {
     id: service.id,
     name: service.name,
     description: service.description,
-    price: String(service.price),
-    unit: service.unit,
     category: service.category,
-    estimated_days: service.estimated_days,
-    is_active: service.is_active,
+    status: service.is_active ? 'active' : 'inactive',
   };
+}
+
+function formatService(service) {
+  return formatSlimService(service);
 }
 
 module.exports = {

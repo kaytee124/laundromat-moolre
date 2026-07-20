@@ -7,10 +7,11 @@ module.exports = (sequelize) => {
     {
       id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
       order_id: { type: DataTypes.BIGINT, allowNull: false },
-      service_id: { type: DataTypes.BIGINT, allowNull: false },
+      service_id: { type: DataTypes.BIGINT, allowNull: true },
       item_name: { type: DataTypes.STRING(100), allowNull: false },
       description: { type: DataTypes.TEXT, allowNull: true },
-      quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+      dirty_quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      clean_quantity: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       unit_price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
       subtotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
       notes: { type: DataTypes.TEXT, allowNull: true },

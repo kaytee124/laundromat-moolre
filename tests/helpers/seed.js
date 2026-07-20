@@ -4,12 +4,11 @@ const { hashPassword } = require('../../services/authService');
 const STAFF_PASSWORD = 'ChangeMe123!';
 const CLIENT_PASSWORD = 'ClientPass123!';
 
-async function createUser({ username, email, role, password, flags = {} }) {
+async function createUser({ username, role, password, flags = {} }) {
   const password_hash = await hashPassword(password);
   const isStaff = ['superadmin', 'admin', 'employee'].includes(role);
   const user = await User.create({
     username,
-    email,
     password_hash,
     first_name: username,
     last_name: 'Test',
@@ -26,28 +25,24 @@ async function createUser({ username, email, role, password, flags = {} }) {
 async function seedBaseline() {
   const superadmin = await createUser({
     username: 'superadmin1',
-    email: 'superadmin1@test.com',
     role: 'superadmin',
     password: STAFF_PASSWORD,
   });
 
   const admin = await createUser({
     username: 'admin1',
-    email: 'admin1@test.com',
     role: 'admin',
     password: STAFF_PASSWORD,
   });
 
   const employee = await createUser({
     username: 'employee1',
-    email: 'employee1@test.com',
     role: 'employee',
     password: STAFF_PASSWORD,
   });
 
   const clientUser = await createUser({
     username: 'client1',
-    email: 'client1@test.com',
     role: 'client',
     password: CLIENT_PASSWORD,
     flags: { is_staff: false, is_superuser: false },
@@ -55,7 +50,6 @@ async function seedBaseline() {
 
   const client2User = await createUser({
     username: 'client2',
-    email: 'client2@test.com',
     role: 'client',
     password: CLIENT_PASSWORD,
     flags: { is_staff: false, is_superuser: false },

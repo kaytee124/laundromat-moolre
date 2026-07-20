@@ -17,6 +17,7 @@ const Customer = require('./Customer')(sequelize);
 const Service = require('./Service')(sequelize);
 const Order = require('./Order')(sequelize);
 const OrderItem = require('./OrderItem')(sequelize);
+const OrderService = require('./OrderService')(sequelize);
 const Payment = require('./Payment')(sequelize);
 const RefreshToken = require('./RefreshToken')(sequelize);
 const OrderStatusHistory = require('./OrderStatusHistory')(sequelize);
@@ -41,11 +42,17 @@ Order.belongsTo(User, { as: 'assignee', foreignKey: 'assigned_to' });
 Order.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 Order.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
 Order.hasMany(OrderItem, { as: 'order_items', foreignKey: 'order_id' });
+Order.hasMany(OrderService, { as: 'order_services', foreignKey: 'order_id' });
 Customer.hasMany(Order, { as: 'orders', foreignKey: 'customer_id' });
 
 // OrderItem
 OrderItem.belongsTo(Order, { as: 'order', foreignKey: 'order_id' });
 OrderItem.belongsTo(Service, { as: 'service', foreignKey: 'service_id' });
+
+// OrderService
+OrderService.belongsTo(Order, { as: 'order', foreignKey: 'order_id' });
+OrderService.belongsTo(Service, { as: 'service', foreignKey: 'service_id' });
+Service.hasMany(OrderService, { as: 'order_services', foreignKey: 'service_id' });
 
 // Payment
 Payment.belongsTo(Order, { as: 'order', foreignKey: 'order_id' });
@@ -70,6 +77,7 @@ module.exports = {
   Service,
   Order,
   OrderItem,
+  OrderService,
   Payment,
   RefreshToken,
   OrderStatusHistory,

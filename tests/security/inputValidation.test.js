@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 
 describe('Security: Input validation', () => {
   let tokens;
@@ -31,13 +31,14 @@ describe('Security: Input validation', () => {
   });
 
   it('blocks default password on change-password', async () => {
+    const { DEFAULT_CUSTOMER_PASSWORD } = require('../../utils/constants');
     const res = await request(app)
       .post('/api/accounts/change-password/')
       .set(tokens.client.headers)
       .send({
         old_password: global.testContext.passwords.client,
-        new_password: 'ChangeMe123!',
-        confirm_password: 'ChangeMe123!',
+        new_password: DEFAULT_CUSTOMER_PASSWORD,
+        confirm_password: DEFAULT_CUSTOMER_PASSWORD,
       });
     expect(res.status).toBe(422);
   });
@@ -48,7 +49,6 @@ describe('Security: Input validation', () => {
       .post('/api/customers/register/')
       .send({
         username: uniqueUsername('phone'),
-        email: uniqueEmail('phone'),
         password: 'SecurePass1!',
         first_name: 'Phone',
         last_name: 'Dup',

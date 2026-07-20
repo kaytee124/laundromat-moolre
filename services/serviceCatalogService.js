@@ -4,10 +4,20 @@ const { AppError } = require('../utils/errors');
 const { formatService } = require('../utils/serializers');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
+function parseStatusToIsActive(status) {
+  if (status === undefined || status === null || status === '') return undefined;
+  const normalized = String(status).trim().toLowerCase();
+  if (normalized === 'active' || normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'inactive' || normalized === 'false' || normalized === '0') return false;
+  throw new AppError('VALIDATION_ERROR', 'status must be active or inactive', 400);
+}
+
 async function listServices(query = {}) {
   const { page, pageSize, offset, limit } = parsePagination(query);
   const where = {};
-  if (query.is_active !== undefined) {
+  if (query.status !== undefined) {
+    where.is_active = parseStatusToIsActive(query.status);
+  } else if (query.is_active !== undefined) {
     where.is_active = ['true', '1', 'yes'].includes(String(query.is_active).toLowerCase());
   }
   if (query.category) where.category = query.category;
@@ -42,23 +52,17 @@ async function getServiceById(id) {
 
 async function validateServiceData(data, isUpdate = false, instance = null) {
   if (!isUpdate) {
-    if (!data.name || !data.name.trim()) {
-      throw new AppError('MISSING_FIELDS', 'Name and price are required', 400);
-    }
-    if (data.price === undefined || data.price === null) {
-      throw new AppError('MISSING_FIELDS', 'Name and price are required', 400);
+    if (!data.name || !String(data.name).trim()) {
+      throw new AppError('MISSING_FIELDS', 'Name is required', 400);
     }
   }
 
   if (data.name !== undefined && (!data.name || !String(data.name).trim())) {
-    throw new AppError('MISSING_FIELDS', 'Name and price are required', 400);
+    throw new AppError('MISSING_FIELDS', 'Name is required', 400);
   }
 
-  if (data.price !== undefined) {
-    const price = parseFloat(data.price);
-    if (isNaN(price) || price <= 0) {
-      throw new AppError('INVALID_PRICE', 'Price must be greater than 0', 422);
-    }
+  if (data.status !== undefined) {
+    parseStatusToIsActive(data.status);
   }
 
   if (data.name) {
@@ -78,15 +82,16 @@ async function validateServiceData(data, isUpdate = false, instance = null) {
 async function createService(data, user) {
   await validateServiceData(data, false);
   const now = new Date();
+  const statusActive = data.status !== undefined ? parseStatusToIsActive(data.status) : undefined;
 
   const service = await Service.create({
     name: data.name.trim(),
     description: data.description || '',
-    price: data.price,
-    unit: data.unit || '',
+    price: 0,
+    unit: '',
     category: data.category || '',
-    estimated_days: data.estimated_days ?? 1,
-    is_active: data.is_active !== undefined ? data.is_active : true,
+    estimated_days: 1,
+    is_active: statusActive !== undefined ? statusActive : data.is_active !== undefined ? data.is_active : true,
     created_by: user.id,
     created_at: now,
     updated_at: now,
@@ -101,11 +106,14 @@ async function updateService(id, data, user) {
 
   await validateServiceData(data, true, service);
 
-  const fields = ['name', 'description', 'price', 'unit', 'category', 'estimated_days', 'is_active'];
+  const fields = ['name', 'description', 'category', 'is_active'];
   for (const field of fields) {
     if (data[field] !== undefined) {
       service[field] = field === 'name' ? data[field].trim() : data[field];
     }
+  }
+  if (data.status !== undefined) {
+    service.is_active = parseStatusToIsActive(data.status);
   }
   service.updated_by = user.id;
   service.updated_at = new Date();

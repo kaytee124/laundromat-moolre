@@ -24,7 +24,7 @@ async function generatePaymentLink({ email, amount, externalref, metadata }) {
     payload.redirect = moolreConfig.redirectUrl;
   }
 
-  const response = await axios.post(`${moolreConfig.apiBase}/embed/link`, payload, {
+  const response = await axios.post(moolreConfig.urls.embedLink, payload, {
     headers: MOOLRE_HEADERS,
     timeout: 30000,
   });
@@ -33,7 +33,7 @@ async function generatePaymentLink({ email, amount, externalref, metadata }) {
 
 async function checkTransactionStatus({ idtype, id }) {
   const response = await axios.post(
-    `${moolreConfig.apiBase}/open/transact/status`,
+    moolreConfig.urls.transactStatus,
     {
       type: 1,
       idtype: String(idtype),
@@ -65,7 +65,7 @@ async function initiatePayment({
     accountnumber: moolreConfig.accountNumber,
   };
 
-  const response = await axios.post(`${moolreConfig.apiBase}/open/transact/payment`, payload, {
+  const response = await axios.post(moolreConfig.urls.transactPayment, payload, {
     headers: MOOLRE_HEADERS,
     timeout: 30000,
   });
@@ -93,7 +93,7 @@ async function sendSms({ recipient, message, ref }) {
     ],
   };
 
-  const response = await axios.post(`${moolreConfig.apiBase}/open/sms/send`, payload, {
+  const response = await axios.post(moolreConfig.urls.smsSend, payload, {
     headers: {
       'X-API-VASKEY': moolreConfig.smsVasKey,
       'Content-Type': 'application/json',

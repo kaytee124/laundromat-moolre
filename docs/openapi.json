@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order status changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n- SMS failures are logged only; they do **not** fail payment or order API responses.\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated\n  - **picked up** — when `picked_up` flips to `true`\n- SMS failures are logged only; they do **not** fail payment or order API responses.\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -138,7 +138,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -657,7 +656,6 @@
                     "username": "client1",
                     "first_name": "Jane",
                     "last_name": "Doe",
-                    "email": "client1@example.com",
                     "status": "active",
                     "phone_number": "0200000001",
                     "total_orders": 3,
@@ -730,7 +728,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -832,7 +829,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "admin",
@@ -912,13 +908,6 @@
                       "message": "Username already taken",
                       "status_code": 409
                     }
-                  },
-                  "EMAIL_EXISTS": {
-                    "value": {
-                      "error_code": "EMAIL_EXISTS",
-                      "message": "Email already registered",
-                      "status_code": 409
-                    }
                   }
                 }
               }
@@ -961,7 +950,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -1067,7 +1055,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "employee",
@@ -1195,7 +1182,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "employee",
@@ -1275,13 +1261,6 @@
                       "message": "Username already taken",
                       "status_code": 409
                     }
-                  },
-                  "EMAIL_EXISTS": {
-                    "value": {
-                      "error_code": "EMAIL_EXISTS",
-                      "message": "Email already registered",
-                      "status_code": 409
-                    }
                   }
                 }
               }
@@ -1324,7 +1303,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -1430,7 +1408,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -1553,7 +1530,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -1682,7 +1658,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "superadmin",
@@ -1742,7 +1717,7 @@
             }
           },
           "409": {
-            "description": "Username or email conflict",
+            "description": "Username conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -1753,13 +1728,6 @@
                     "value": {
                       "error_code": "USERNAME_EXISTS",
                       "message": "Username already taken",
-                      "status_code": 409
-                    }
-                  },
-                  "EMAIL_EXISTS": {
-                    "value": {
-                      "error_code": "EMAIL_EXISTS",
-                      "message": "Email already registered",
                       "status_code": 409
                     }
                   }
@@ -1804,7 +1772,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -1910,7 +1877,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "admin",
@@ -2042,7 +2008,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "employee",
@@ -2174,7 +2139,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -2297,7 +2261,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -2436,7 +2399,6 @@
                       "id": 2,
                       "first_name": "Admin",
                       "last_name": "User",
-                      "email": "admin@example.com",
                       "status": "active"
                     }
                   ]
@@ -2540,7 +2502,6 @@
                       "id": 2,
                       "first_name": "Admin",
                       "last_name": "User",
-                      "email": "admin@example.com",
                       "status": "active"
                     }
                   ]
@@ -2644,7 +2605,6 @@
                       "id": 2,
                       "first_name": "Admin",
                       "last_name": "User",
-                      "email": "admin@example.com",
                       "status": "active"
                     }
                   ]
@@ -2748,7 +2708,6 @@
                       "id": 1,
                       "first_name": "Jane",
                       "last_name": "Doe",
-                      "email": "client1@example.com",
                       "status": "active",
                       "username": "client1",
                       "phone_number": "0200000001",
@@ -2834,7 +2793,6 @@
               },
               "example": {
                 "username": "newclient",
-                "email": "new@example.com",
                 "password": "securepass1",
                 "first_name": "New",
                 "last_name": "Client",
@@ -2859,7 +2817,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -2912,13 +2869,6 @@
                     "value": {
                       "error_code": "USERNAME_EXISTS",
                       "message": "Username already taken",
-                      "status_code": 409
-                    }
-                  },
-                  "EMAIL_EXISTS": {
-                    "value": {
-                      "error_code": "EMAIL_EXISTS",
-                      "message": "Email already registered",
                       "status_code": 409
                     }
                   },
@@ -2998,7 +2948,6 @@
                   "user": {
                     "id": 1,
                     "username": "client1",
-                    "email": "client1@example.com",
                     "first_name": "Jane",
                     "last_name": "Doe",
                     "role": "client",
@@ -3081,13 +3030,6 @@
                       "message": "Username already taken",
                       "status_code": 409
                     }
-                  },
-                  "EMAIL_EXISTS": {
-                    "value": {
-                      "error_code": "EMAIL_EXISTS",
-                      "message": "Email already registered",
-                      "status_code": 409
-                    }
                   }
                 }
               }
@@ -3127,11 +3069,8 @@
                       "id": 1,
                       "name": "Wash & Fold",
                       "description": "Standard laundry service",
-                      "price": "25.00",
-                      "unit": "per item",
                       "category": "wash",
-                      "estimated_days": 2,
-                      "is_active": true
+                      "status": "active"
                     }
                   ]
                 }
@@ -3179,11 +3118,8 @@
                     "id": 1,
                     "name": "Wash & Fold",
                     "description": "Standard laundry service",
-                    "price": "25.00",
-                    "unit": "per item",
                     "category": "wash",
-                    "estimated_days": 2,
-                    "is_active": true
+                    "status": "active"
                   }
                 }
               }
@@ -3275,11 +3211,8 @@
                     "id": 1,
                     "name": "Wash & Fold",
                     "description": "Standard laundry service",
-                    "price": "25.00",
-                    "unit": "per item",
                     "category": "wash",
-                    "estimated_days": 2,
-                    "is_active": true
+                    "status": "active"
                   }
                 }
               }
@@ -3407,11 +3340,8 @@
                     "id": 1,
                     "name": "Wash & Fold",
                     "description": "Standard laundry service",
-                    "price": "25.00",
-                    "unit": "per item",
                     "category": "wash",
-                    "estimated_days": 2,
-                    "is_active": true
+                    "status": "active"
                   }
                 }
               }
@@ -3602,18 +3532,52 @@
                         "assigned_to_username": "employee1",
                         "order_status": "pending",
                         "payment_status": "pending",
-                        "total_amount": "50.00",
+                        "total_amount": "89.50",
                         "amount_paid": "0.00",
-                        "discount_amount": "0.00",
+                        "discount_amount": "5.00",
+                        "delivery_date": "2026-07-22",
+                        "delivery_time": "14:30:00",
+                        "estimated_completion_date": "2026-07-21",
+                        "picked_up": false,
+                        "picked_up_at": null,
+                        "service_ids": [
+                          1,
+                          3
+                        ],
+                        "services": [
+                          {
+                            "id": 1,
+                            "name": "Wash, Dry & Fold",
+                            "description": "Wash dry and fold",
+                            "category": "wash",
+                            "status": "active"
+                          },
+                          {
+                            "id": 3,
+                            "name": "Ironing Only",
+                            "description": "Press only",
+                            "category": "iron",
+                            "status": "active"
+                          }
+                        ],
                         "order_items": [
                           {
                             "id": 1,
-                            "service_id": 1,
-                            "service_name": "Wash & Fold",
-                            "item_name": "Wash & Fold",
-                            "quantity": 2,
-                            "unit_price": "25.00",
-                            "subtotal": "50.00"
+                            "item_name": "TOPS",
+                            "dirty_quantity": 5,
+                            "clean_quantity": 0,
+                            "unit_price": "12.50",
+                            "subtotal": "62.50",
+                            "notes": ""
+                          },
+                          {
+                            "id": 2,
+                            "item_name": "BOTTOMS",
+                            "dirty_quantity": 0,
+                            "clean_quantity": 4,
+                            "unit_price": "8.00",
+                            "subtotal": "32.00",
+                            "notes": "press only"
                           }
                         ]
                       }
@@ -3699,10 +3663,27 @@
               },
               "example": {
                 "customer_id": 1,
+                "service_ids": [
+                  1,
+                  3
+                ],
+                "delivery_date": "2026-07-22",
+                "delivery_time": "14:30",
+                "discount_amount": 0,
                 "order_items_data": [
                   {
-                    "service_id": 1,
-                    "quantity": 2
+                    "item_name": "TOPS",
+                    "dirty_quantity": 5,
+                    "clean_quantity": 0,
+                    "unit_price": 12.5,
+                    "notes": ""
+                  },
+                  {
+                    "item_name": "BOTTOMS",
+                    "dirty_quantity": 0,
+                    "clean_quantity": 4,
+                    "unit_price": 8,
+                    "notes": "press only"
                   }
                 ]
               }
@@ -3730,18 +3711,52 @@
                     "assigned_to_username": "employee1",
                     "order_status": "pending",
                     "payment_status": "pending",
-                    "total_amount": "50.00",
+                    "total_amount": "89.50",
                     "amount_paid": "0.00",
-                    "discount_amount": "0.00",
+                    "discount_amount": "5.00",
+                    "delivery_date": "2026-07-22",
+                    "delivery_time": "14:30:00",
+                    "estimated_completion_date": "2026-07-21",
+                    "picked_up": false,
+                    "picked_up_at": null,
+                    "service_ids": [
+                      1,
+                      3
+                    ],
+                    "services": [
+                      {
+                        "id": 1,
+                        "name": "Wash, Dry & Fold",
+                        "description": "Wash dry and fold",
+                        "category": "wash",
+                        "status": "active"
+                      },
+                      {
+                        "id": 3,
+                        "name": "Ironing Only",
+                        "description": "Press only",
+                        "category": "iron",
+                        "status": "active"
+                      }
+                    ],
                     "order_items": [
                       {
                         "id": 1,
-                        "service_id": 1,
-                        "service_name": "Wash & Fold",
-                        "item_name": "Wash & Fold",
-                        "quantity": 2,
-                        "unit_price": "25.00",
-                        "subtotal": "50.00"
+                        "item_name": "TOPS",
+                        "dirty_quantity": 5,
+                        "clean_quantity": 0,
+                        "unit_price": "12.50",
+                        "subtotal": "62.50",
+                        "notes": ""
+                      },
+                      {
+                        "id": 2,
+                        "item_name": "BOTTOMS",
+                        "dirty_quantity": 0,
+                        "clean_quantity": 4,
+                        "unit_price": "8.00",
+                        "subtotal": "32.00",
+                        "notes": "press only"
                       }
                     ]
                   }
@@ -3860,18 +3875,52 @@
                     "assigned_to_username": "employee1",
                     "order_status": "pending",
                     "payment_status": "pending",
-                    "total_amount": "50.00",
+                    "total_amount": "89.50",
                     "amount_paid": "0.00",
-                    "discount_amount": "0.00",
+                    "discount_amount": "5.00",
+                    "delivery_date": "2026-07-22",
+                    "delivery_time": "14:30:00",
+                    "estimated_completion_date": "2026-07-21",
+                    "picked_up": false,
+                    "picked_up_at": null,
+                    "service_ids": [
+                      1,
+                      3
+                    ],
+                    "services": [
+                      {
+                        "id": 1,
+                        "name": "Wash, Dry & Fold",
+                        "description": "Wash dry and fold",
+                        "category": "wash",
+                        "status": "active"
+                      },
+                      {
+                        "id": 3,
+                        "name": "Ironing Only",
+                        "description": "Press only",
+                        "category": "iron",
+                        "status": "active"
+                      }
+                    ],
                     "order_items": [
                       {
                         "id": 1,
-                        "service_id": 1,
-                        "service_name": "Wash & Fold",
-                        "item_name": "Wash & Fold",
-                        "quantity": 2,
-                        "unit_price": "25.00",
-                        "subtotal": "50.00"
+                        "item_name": "TOPS",
+                        "dirty_quantity": 5,
+                        "clean_quantity": 0,
+                        "unit_price": "12.50",
+                        "subtotal": "62.50",
+                        "notes": ""
+                      },
+                      {
+                        "id": 2,
+                        "item_name": "BOTTOMS",
+                        "dirty_quantity": 0,
+                        "clean_quantity": 4,
+                        "unit_price": "8.00",
+                        "subtotal": "32.00",
+                        "notes": "press only"
                       }
                     ]
                   }
@@ -3967,7 +4016,7 @@
           "Orders"
         ],
         "summary": "Update order",
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff may update order fields including `order_status`. Setting `order_status` to `in_progress` or `completed` triggers a customer SMS asynchronously (fire-and-forget; failures are logged only). Payment-driven auto-`in_progress` at the 30% threshold is handled by the payment webhook path, not this endpoint.",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff may update order fields including `order_status`, `service_ids`, `order_items_data`, `estimated_completion_date`, and `picked_up`. Setting `order_status` to `in_progress` or `completed`, changing the estimated completion date, or marking `picked_up: true` triggers a customer SMS asynchronously (fire-and-forget; failures are logged only). Payment-driven auto-`in_progress` at the 30% threshold is handled by the payment webhook path, not this endpoint.",
         "security": [
           {
             "bearerAuth": []
@@ -4008,18 +4057,52 @@
                     "assigned_to_username": "employee1",
                     "order_status": "pending",
                     "payment_status": "pending",
-                    "total_amount": "50.00",
+                    "total_amount": "89.50",
                     "amount_paid": "0.00",
-                    "discount_amount": "0.00",
+                    "discount_amount": "5.00",
+                    "delivery_date": "2026-07-22",
+                    "delivery_time": "14:30:00",
+                    "estimated_completion_date": "2026-07-21",
+                    "picked_up": false,
+                    "picked_up_at": null,
+                    "service_ids": [
+                      1,
+                      3
+                    ],
+                    "services": [
+                      {
+                        "id": 1,
+                        "name": "Wash, Dry & Fold",
+                        "description": "Wash dry and fold",
+                        "category": "wash",
+                        "status": "active"
+                      },
+                      {
+                        "id": 3,
+                        "name": "Ironing Only",
+                        "description": "Press only",
+                        "category": "iron",
+                        "status": "active"
+                      }
+                    ],
                     "order_items": [
                       {
                         "id": 1,
-                        "service_id": 1,
-                        "service_name": "Wash & Fold",
-                        "item_name": "Wash & Fold",
-                        "quantity": 2,
-                        "unit_price": "25.00",
-                        "subtotal": "50.00"
+                        "item_name": "TOPS",
+                        "dirty_quantity": 5,
+                        "clean_quantity": 0,
+                        "unit_price": "12.50",
+                        "subtotal": "62.50",
+                        "notes": ""
+                      },
+                      {
+                        "id": 2,
+                        "item_name": "BOTTOMS",
+                        "dirty_quantity": 0,
+                        "clean_quantity": 4,
+                        "unit_price": "8.00",
+                        "subtotal": "32.00",
+                        "notes": "press only"
                       }
                     ]
                   }
@@ -5054,7 +5137,6 @@
               "INVALID_DATE_RANGE",
               "DATE_RANGE_TOO_LARGE",
               "USERNAME_EXISTS",
-              "EMAIL_EXISTS",
               "PHONE_EXISTS",
               "INVALID_PASSWORD",
               "INVALID_DATE_FORMAT",
@@ -5126,10 +5208,6 @@
           "username": {
             "type": "string"
           },
-          "email": {
-            "type": "string",
-            "format": "email"
-          },
           "first_name": {
             "type": "string"
           },
@@ -5193,7 +5271,6 @@
           "user": {
             "id": 1,
             "username": "client1",
-            "email": "client1@example.com",
             "first_name": "Jane",
             "last_name": "Doe",
             "role": "client",
@@ -5272,9 +5349,6 @@
           "last_name": {
             "type": "string"
           },
-          "email": {
-            "type": "string"
-          },
           "status": {
             "type": "string"
           },
@@ -5327,7 +5401,6 @@
             "username": "client1",
             "first_name": "Jane",
             "last_name": "Doe",
-            "email": "client1@example.com",
             "status": "active",
             "phone_number": "0200000001",
             "total_orders": 3,
@@ -5350,7 +5423,6 @@
           "user": {
             "id": 1,
             "username": "client1",
-            "email": "client1@example.com",
             "first_name": "Jane",
             "last_name": "Doe",
             "role": "client",
@@ -5367,9 +5439,6 @@
             "type": "string"
           },
           "last_name": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "phone_number": {
@@ -5394,15 +5463,10 @@
         "type": "object",
         "required": [
           "username",
-          "email",
-          "first_name",
-          "last_name"
+          "first_name"
         ],
         "properties": {
           "username": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "first_name": {
@@ -5434,7 +5498,6 @@
           "user": {
             "id": 1,
             "username": "client1",
-            "email": "client1@example.com",
             "first_name": "Jane",
             "last_name": "Doe",
             "role": "admin",
@@ -5452,9 +5515,6 @@
           "username": {
             "type": "string"
           },
-          "email": {
-            "type": "string"
-          },
           "first_name": {
             "type": "string"
           },
@@ -5470,9 +5530,6 @@
             "type": "string"
           },
           "last_name": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "phone_number": {
@@ -5496,9 +5553,6 @@
         "type": "object",
         "properties": {
           "username": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "first_name": {
@@ -5574,9 +5628,6 @@
           "last_name": {
             "type": "string"
           },
-          "email": {
-            "type": "string"
-          },
           "status": {
             "type": "string"
           }
@@ -5648,7 +5699,6 @@
               "id": 2,
               "first_name": "Admin",
               "last_name": "User",
-              "email": "admin@example.com",
               "status": "active"
             }
           ]
@@ -5686,7 +5736,6 @@
               "id": 1,
               "first_name": "Jane",
               "last_name": "Doe",
-              "email": "client1@example.com",
               "status": "active",
               "username": "client1",
               "phone_number": "0200000001",
@@ -5703,10 +5752,8 @@
         "type": "object",
         "required": [
           "username",
-          "email",
           "password",
           "first_name",
-          "last_name",
           "phone_number",
           "whatsapp_number",
           "address",
@@ -5714,9 +5761,6 @@
         ],
         "properties": {
           "username": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "password": {
@@ -5770,7 +5814,6 @@
           "user": {
             "id": 1,
             "username": "client1",
-            "email": "client1@example.com",
             "first_name": "Jane",
             "last_name": "Doe",
             "role": "client",
@@ -5787,9 +5830,7 @@
         "type": "object",
         "required": [
           "username",
-          "email",
           "first_name",
-          "last_name",
           "phone_number",
           "whatsapp_number",
           "address",
@@ -5797,9 +5838,6 @@
         ],
         "properties": {
           "username": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           },
           "first_name": {
@@ -5855,7 +5893,6 @@
           "user": {
             "id": 1,
             "username": "client1",
-            "email": "client1@example.com",
             "first_name": "Jane",
             "last_name": "Doe",
             "role": "client",
@@ -5883,22 +5920,16 @@
             "type": "string",
             "nullable": true
           },
-          "price": {
-            "type": "string"
-          },
-          "unit": {
-            "type": "string"
-          },
           "category": {
             "type": "string",
             "nullable": true
           },
-          "estimated_days": {
-            "type": "integer",
-            "nullable": true
-          },
-          "is_active": {
-            "type": "boolean"
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
           }
         }
       },
@@ -5923,11 +5954,8 @@
               "id": 1,
               "name": "Wash & Fold",
               "description": "Standard laundry service",
-              "price": "25.00",
-              "unit": "per item",
               "category": "wash",
-              "estimated_days": 2,
-              "is_active": true
+              "status": "active"
             }
           ]
         }
@@ -5948,19 +5976,15 @@
             "id": 1,
             "name": "Wash & Fold",
             "description": "Standard laundry service",
-            "price": "25.00",
-            "unit": "per item",
             "category": "wash",
-            "estimated_days": 2,
-            "is_active": true
+            "status": "active"
           }
         }
       },
       "ServiceCreateRequest": {
         "type": "object",
         "required": [
-          "name",
-          "price"
+          "name"
         ],
         "properties": {
           "name": {
@@ -5969,17 +5993,15 @@
           "description": {
             "type": "string"
           },
-          "price": {
-            "type": "number"
-          },
-          "unit": {
-            "type": "string"
-          },
           "category": {
             "type": "string"
           },
-          "estimated_days": {
-            "type": "integer"
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
           }
         }
       },
@@ -5992,20 +6014,15 @@
           "description": {
             "type": "string"
           },
-          "price": {
-            "type": "number"
-          },
-          "unit": {
-            "type": "string"
-          },
           "category": {
             "type": "string"
           },
-          "estimated_days": {
-            "type": "integer"
-          },
-          "is_active": {
-            "type": "boolean"
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
           }
         }
       },
@@ -6029,11 +6046,8 @@
             "id": 1,
             "name": "Wash & Fold",
             "description": "Standard laundry service",
-            "price": "25.00",
-            "unit": "per item",
             "category": "wash",
-            "estimated_days": 2,
-            "is_active": true
+            "status": "active"
           }
         }
       },
@@ -6043,21 +6057,13 @@
           "id": {
             "type": "integer"
           },
-          "service_id": {
-            "type": "integer"
-          },
-          "service_name": {
-            "type": "string",
-            "nullable": true
-          },
           "item_name": {
             "type": "string"
           },
-          "description": {
-            "type": "string",
-            "nullable": true
+          "dirty_quantity": {
+            "type": "integer"
           },
-          "quantity": {
+          "clean_quantity": {
             "type": "integer"
           },
           "unit_price": {
@@ -6067,7 +6073,34 @@
             "type": "string"
           },
           "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "OrderServiceSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
             "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
           }
         }
       },
@@ -6132,6 +6165,11 @@
             "format": "date",
             "nullable": true
           },
+          "delivery_time": {
+            "type": "string",
+            "nullable": true,
+            "description": "HH:MM:SS"
+          },
           "estimated_completion_date": {
             "type": "string",
             "format": "date",
@@ -6141,6 +6179,26 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "picked_up": {
+            "type": "boolean"
+          },
+          "picked_up_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "service_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderServiceSummary"
+            }
           },
           "order_items": {
             "type": "array",
@@ -6199,11 +6257,20 @@
         "type": "object",
         "required": [
           "customer_id",
+          "service_ids",
           "order_items_data"
         ],
         "properties": {
           "customer_id": {
             "type": "integer"
+          },
+          "service_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer"
+            },
+            "description": "Multi-select service IDs for the order"
           },
           "assigned_to": {
             "type": "integer"
@@ -6231,6 +6298,10 @@
             "type": "string",
             "format": "date"
           },
+          "delivery_time": {
+            "type": "string",
+            "description": "HH:MM or HH:MM:SS"
+          },
           "estimated_completion_date": {
             "type": "string",
             "format": "date"
@@ -6241,26 +6312,30 @@
             "items": {
               "type": "object",
               "required": [
-                "service_id"
+                "item_name",
+                "unit_price"
               ],
               "properties": {
-                "service_id": {
-                  "type": "integer"
+                "item_name": {
+                  "type": "string",
+                  "example": "TOPS"
                 },
-                "quantity": {
+                "dirty_quantity": {
                   "type": "integer",
-                  "minimum": 1
+                  "minimum": 0
+                },
+                "clean_quantity": {
+                  "type": "integer",
+                  "minimum": 0
                 },
                 "unit_price": {
                   "type": "number"
                 },
-                "item_name": {
-                  "type": "string"
+                "notes": {
+                  "type": "string",
+                  "description": "Remarks"
                 },
                 "description": {
-                  "type": "string"
-                },
-                "notes": {
                   "type": "string"
                 }
               }
@@ -6297,6 +6372,9 @@
             "type": "string",
             "format": "date"
           },
+          "delivery_time": {
+            "type": "string"
+          },
           "estimated_completion_date": {
             "type": "string",
             "format": "date"
@@ -6304,6 +6382,38 @@
           "completed_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "picked_up": {
+            "type": "boolean"
+          },
+          "service_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "order_items_data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "item_name": {
+                  "type": "string"
+                },
+                "dirty_quantity": {
+                  "type": "integer"
+                },
+                "clean_quantity": {
+                  "type": "integer"
+                },
+                "unit_price": {
+                  "type": "number"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -6333,18 +6443,52 @@
             "assigned_to_username": "employee1",
             "order_status": "pending",
             "payment_status": "pending",
-            "total_amount": "50.00",
+            "total_amount": "89.50",
             "amount_paid": "0.00",
-            "discount_amount": "0.00",
+            "discount_amount": "5.00",
+            "delivery_date": "2026-07-22",
+            "delivery_time": "14:30:00",
+            "estimated_completion_date": "2026-07-21",
+            "picked_up": false,
+            "picked_up_at": null,
+            "service_ids": [
+              1,
+              3
+            ],
+            "services": [
+              {
+                "id": 1,
+                "name": "Wash, Dry & Fold",
+                "description": "Wash dry and fold",
+                "category": "wash",
+                "status": "active"
+              },
+              {
+                "id": 3,
+                "name": "Ironing Only",
+                "description": "Press only",
+                "category": "iron",
+                "status": "active"
+              }
+            ],
             "order_items": [
               {
                 "id": 1,
-                "service_id": 1,
-                "service_name": "Wash & Fold",
-                "item_name": "Wash & Fold",
-                "quantity": 2,
-                "unit_price": "25.00",
-                "subtotal": "50.00"
+                "item_name": "TOPS",
+                "dirty_quantity": 5,
+                "clean_quantity": 0,
+                "unit_price": "12.50",
+                "subtotal": "62.50",
+                "notes": ""
+              },
+              {
+                "id": 2,
+                "item_name": "BOTTOMS",
+                "dirty_quantity": 0,
+                "clean_quantity": 4,
+                "unit_price": "8.00",
+                "subtotal": "32.00",
+                "notes": "press only"
               }
             ]
           }

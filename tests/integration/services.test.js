@@ -15,11 +15,21 @@ describe('Services API', () => {
   });
 
   describe('GET /api/services/list/', () => {
-    it('is public', async () => {
+    it('is public and returns slim service shape', async () => {
       const res = await request(app).get('/api/services/list/');
       expect(res.status).toBe(200);
       expect(res.body.data.results.length).toBeGreaterThan(0);
       expect(res.body.data.count).toBeGreaterThan(0);
+      const row = res.body.data.results[0];
+      expect(row).toHaveProperty('id');
+      expect(row).toHaveProperty('name');
+      expect(row).toHaveProperty('description');
+      expect(row).toHaveProperty('category');
+      expect(['active', 'inactive']).toContain(row.status);
+      expect(row.price).toBeUndefined();
+      expect(row.unit).toBeUndefined();
+      expect(row.estimated_days).toBeUndefined();
+      expect(row.is_active).toBeUndefined();
     });
 
     it('filters by category', async () => {
@@ -30,19 +40,19 @@ describe('Services API', () => {
   });
 
   describe('POST /api/services/create/', () => {
-    it('admin creates service', async () => {
+    it('admin creates service without price', async () => {
       const res = await request(app)
         .post('/api/services/create/')
         .set(tokens.admin.headers)
         .send({
           name: `Unique Service ${Date.now()}`,
           description: 'Desc',
-          price: 15.5,
-          unit: 'per kg',
           category: 'dry',
-          estimated_days: 1,
+          status: 'active',
         });
       expect(res.status).toBe(201);
+      expect(res.body.data.status).toBe('active');
+      expect(res.body.data.price).toBeUndefined();
     });
 
     it('rejects duplicate name', async () => {
@@ -52,29 +62,28 @@ describe('Services API', () => {
         .send({
           name: service.name,
           description: 'Dup',
-          price: 10,
+          category: 'wash',
         });
       expect(res.status).toBe(409);
       expect(res.body.error_code).toBe('SERVICE_EXISTS');
     });
 
-    it('rejects invalid price', async () => {
+    it('rejects missing name', async () => {
       const res = await request(app)
         .post('/api/services/create/')
         .set(tokens.admin.headers)
         .send({
-          name: `Bad Price ${Date.now()}`,
           description: 'Bad',
-          price: 0,
+          category: 'wash',
         });
-      expect(res.status).toBe(422);
+      expect(res.status).toBe(400);
     });
 
     it('denies client', async () => {
       const res = await request(app)
         .post('/api/services/create/')
         .set(tokens.client.headers)
-        .send({ name: 'X', price: 5 });
+        .send({ name: 'X', category: 'wash' });
       expect(res.status).toBe(403);
     });
   });
@@ -85,6 +94,8 @@ describe('Services API', () => {
         .get(`/api/services/${service.id}/`)
         .set(tokens.admin.headers);
       expect(res.status).toBe(200);
+      expect(res.body.data.status).toBeDefined();
+      expect(res.body.data.price).toBeUndefined();
     });
   });
 
@@ -93,8 +104,10 @@ describe('Services API', () => {
       const res = await request(app)
         .patch(`/api/services/${service.id}/update/`)
         .set(tokens.admin.headers)
-        .send({ description: 'Updated desc' });
+        .send({ description: 'Updated desc', status: 'inactive' });
       expect(res.status).toBe(200);
+      expect(res.body.data.description).toBe('Updated desc');
+      expect(res.body.data.status).toBe('inactive');
     });
   });
 });

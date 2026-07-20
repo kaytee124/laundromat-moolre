@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 const { recordFinding } = require('../reportSummary');
 
 describe('Security: Payload abuse', () => {
@@ -31,7 +31,6 @@ describe('Security: Payload abuse', () => {
       .send(
         JSON.stringify({
           username: uniqueUsername('big'),
-          email: uniqueEmail('big'),
           password: 'SecurePass1!',
           first_name: hugeField,
           last_name: 'User',

@@ -1,8 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniquePhone } = require('../helpers/fixtures');
 const { createAgent, fetchCsrf } = require('../helpers/auth');
-const { recordFinding } = require('../reportSummary');
 
 describe('Security: Enumeration', () => {
   let ctx;
@@ -32,29 +31,13 @@ describe('Security: Enumeration', () => {
     expect(wrongPassword.body.error_code).toBe(unknownUser.body.error_code);
   });
 
-  it('register reveals distinct codes for duplicate username vs email', async () => {
+  it('register returns USERNAME_EXISTS for duplicate username', async () => {
     const dupUsername = await request(app)
       .post('/api/customers/register/')
       .send({
         username: ctx.client.username,
-        email: uniqueEmail('enum'),
         password: 'SecurePass1!',
         first_name: 'Enum',
-        last_name: 'User',
-        phone_number: uniquePhone(),
-        whatsapp_number: uniquePhone(),
-        address: 'Addr',
-        preferred_contact_method: 'phone',
-      });
-
-    const dupEmail = await request(app)
-      .post('/api/customers/register/')
-      .send({
-        username: uniqueUsername('enum'),
-        email: ctx.client.email,
-        password: 'SecurePass1!',
-        first_name: 'Enum',
-        last_name: 'User',
         phone_number: uniquePhone(),
         whatsapp_number: uniquePhone(),
         address: 'Addr',
@@ -62,8 +45,5 @@ describe('Security: Enumeration', () => {
       });
 
     expect(dupUsername.body.error_code).toBe('USERNAME_EXISTS');
-    expect(dupEmail.body.error_code).toBe('EMAIL_EXISTS');
-    expect(dupUsername.body.error_code).not.toBe(dupEmail.body.error_code);
-    recordFinding('REGISTER_ENUMERATION', 'Register returns distinct USERNAME_EXISTS vs EMAIL_EXISTS');
   });
 });

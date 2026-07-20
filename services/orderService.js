@@ -3,6 +3,7 @@ const { fn, col, Op } = require('sequelize');
 const {
   Order,
   OrderItem,
+  OrderService,
   OrderStatusHistory,
   Customer,
   Service,
@@ -16,6 +17,20 @@ const { parsePagination, paginatedResponse } = require('../utils/pagination');
 const { ORDER_IN_PROGRESS_PAYMENT_RATIO } = require('../utils/constants');
 const orderNotificationService = require('./orderNotificationService');
 
+const ORDER_ITEM_ATTRIBUTES = [
+  'id',
+  'item_name',
+  'dirty_quantity',
+  'clean_quantity',
+  'unit_price',
+  'subtotal',
+  'notes',
+  'created_at',
+  'updated_at',
+];
+
+const SERVICE_SLIM_ATTRIBUTES = ['id', 'name', 'description', 'category', 'is_active'];
+
 const ORDER_LIST_INCLUDES = [
   {
     model: Customer,
@@ -28,11 +43,13 @@ const ORDER_LIST_INCLUDES = [
   {
     model: OrderItem,
     as: 'order_items',
-    attributes: [
-      'id', 'service_id', 'item_name', 'description', 'quantity',
-      'unit_price', 'subtotal', 'notes', 'created_at', 'updated_at',
-    ],
-    include: [{ model: Service, as: 'service', attributes: ['id', 'name', 'price', 'unit'] }],
+    attributes: ORDER_ITEM_ATTRIBUTES,
+  },
+  {
+    model: OrderService,
+    as: 'order_services',
+    attributes: ['id', 'service_id'],
+    include: [{ model: Service, as: 'service', attributes: SERVICE_SLIM_ATTRIBUTES }],
   },
 ];
 
@@ -44,7 +61,17 @@ const ORDER_DETAIL_INCLUDES = [
   },
   { model: User, as: 'assignee', attributes: ['id', 'username'] },
   { model: User, as: 'creator', attributes: ['id', 'username'] },
-  { model: OrderItem, as: 'order_items', include: [{ model: Service, as: 'service' }] },
+  {
+    model: OrderItem,
+    as: 'order_items',
+    attributes: ORDER_ITEM_ATTRIBUTES,
+  },
+  {
+    model: OrderService,
+    as: 'order_services',
+    attributes: ['id', 'service_id'],
+    include: [{ model: Service, as: 'service', attributes: SERVICE_SLIM_ATTRIBUTES }],
+  },
 ];
 
 function isRetryableDbError(err) {
@@ -130,6 +157,85 @@ function generateOrderNumber() {
   return `ORD-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
+function normalizeServiceIds(serviceIds) {
+  if (!Array.isArray(serviceIds)) return [];
+  const unique = [...new Set(serviceIds.map((id) => parseInt(id, 10)).filter((id) => Number.isInteger(id) && id > 0))];
+  return unique;
+}
+
+function normalizeOrderItemsData(orderItemsData) {
+  if (!Array.isArray(orderItemsData)) return [];
+  return orderItemsData
+    .map((item) => {
+      const dirty = parseInt(item.dirty_quantity ?? 0, 10) || 0;
+      const clean = parseInt(item.clean_quantity ?? 0, 10) || 0;
+      return {
+        item_name: String(item.item_name || '').trim(),
+        dirty_quantity: dirty,
+        clean_quantity: clean,
+        unit_price: item.unit_price,
+        notes: item.notes != null ? String(item.notes) : '',
+        description: item.description != null ? String(item.description) : null,
+      };
+    })
+    .filter((item) => item.item_name && item.dirty_quantity + item.clean_quantity > 0);
+}
+
+function computeItemSubtotal(unitPrice, dirtyQuantity, cleanQuantity) {
+  return parseFloat(unitPrice) * (dirtyQuantity + cleanQuantity);
+}
+
+async function validateServicesExist(serviceIds, transaction) {
+  if (!serviceIds.length) {
+    throw new AppError('VALIDATION_ERROR', 'At least one service is required', 400);
+  }
+  const services = await Service.findAll({
+    where: { id: { [Op.in]: serviceIds } },
+    transaction,
+  });
+  if (services.length !== serviceIds.length) {
+    throw new AppError('VALIDATION_ERROR', 'One or more services were not found', 400);
+  }
+  return services;
+}
+
+async function replaceOrderServices(orderId, serviceIds, transaction) {
+  await OrderService.destroy({ where: { order_id: orderId }, transaction });
+  for (const serviceId of serviceIds) {
+    await OrderService.create(
+      { order_id: orderId, service_id: serviceId },
+      { transaction }
+    );
+  }
+}
+
+async function replaceOrderItems(orderId, items, now, transaction) {
+  await OrderItem.destroy({ where: { order_id: orderId }, transaction });
+  for (const item of items) {
+    const unitPrice = parseFloat(item.unit_price);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      throw new AppError('VALIDATION_ERROR', 'unit_price is required and must be a non-negative number', 400);
+    }
+    const subtotal = computeItemSubtotal(unitPrice, item.dirty_quantity, item.clean_quantity);
+    await OrderItem.create(
+      {
+        order_id: orderId,
+        service_id: null,
+        item_name: item.item_name,
+        description: item.description,
+        dirty_quantity: item.dirty_quantity,
+        clean_quantity: item.clean_quantity,
+        unit_price: unitPrice,
+        subtotal,
+        notes: item.notes || '',
+        created_at: now,
+        updated_at: now,
+      },
+      { transaction }
+    );
+  }
+}
+
 async function recalculateOrderTotal(orderId, transaction) {
   const items = await OrderItem.findAll({ where: { order_id: orderId }, transaction });
   const subtotal = items.reduce((sum, item) => sum + parseFloat(item.subtotal), 0);
@@ -201,6 +307,7 @@ async function listOrders(user, query = {}) {
     offset,
     limit,
     subQuery: true,
+    distinct: true,
   });
 
   return paginatedResponse({
@@ -233,13 +340,18 @@ async function createOrder(data, user) {
     throw new AppError('INSUFFICIENT_PERMISSIONS', 'Only admins, superadmins, and staff can create orders', 403);
   }
 
-  const orderItemsData = data.order_items_data || [];
-  if (!orderItemsData.length) {
-    throw new AppError('VALIDATION_ERROR', 'At least one order item is required', 400);
-  }
-
   if (!data.customer_id) {
     throw new AppError('VALIDATION_ERROR', 'Customer is required', 400);
+  }
+
+  const serviceIds = normalizeServiceIds(data.service_ids);
+  const orderItemsData = normalizeOrderItemsData(data.order_items_data || []);
+
+  if (!serviceIds.length) {
+    throw new AppError('VALIDATION_ERROR', 'At least one service is required', 400);
+  }
+  if (!orderItemsData.length) {
+    throw new AppError('VALIDATION_ERROR', 'At least one order item with dirty or clean quantity is required', 400);
   }
 
   const customer = await Customer.findByPk(data.customer_id);
@@ -256,6 +368,8 @@ async function createOrder(data, user) {
     let createdOrderId;
     let createdOrderTotal;
     await sequelize.transaction(async (t) => {
+      await validateServicesExist(serviceIds, t);
+
       const order = await Order.create(
         {
           order_number: generateOrderNumber(),
@@ -268,7 +382,10 @@ async function createOrder(data, user) {
           special_instructions: data.special_instructions || null,
           pickup_date: data.pickup_date || null,
           delivery_date: data.delivery_date || null,
+          delivery_time: data.delivery_time || null,
           estimated_completion_date: data.estimated_completion_date || null,
+          picked_up: false,
+          picked_up_at: null,
           created_by: user.id,
           created_at: now,
           updated_at: now,
@@ -276,34 +393,8 @@ async function createOrder(data, user) {
         { transaction: t }
       );
 
-      for (const itemData of orderItemsData) {
-        const service = await Service.findByPk(itemData.service_id, { transaction: t });
-        if (!service) {
-          throw new AppError('VALIDATION_ERROR', `Service with id ${itemData.service_id} not found`, 400);
-        }
-
-        const quantity = itemData.quantity || 1;
-        if (quantity <= 0) throw new AppError('VALIDATION_ERROR', 'Quantity must be greater than 0', 400);
-
-        const unitPrice = parseFloat(itemData.unit_price ?? service.price);
-        const subtotal = quantity * unitPrice;
-
-        await OrderItem.create(
-          {
-            order_id: order.id,
-            service_id: service.id,
-            item_name: itemData.item_name || service.name,
-            description: itemData.description || service.description,
-            quantity,
-            unit_price: unitPrice,
-            subtotal,
-            notes: itemData.notes || '',
-            created_at: now,
-            updated_at: now,
-          },
-          { transaction: t }
-        );
-      }
+      await replaceOrderServices(order.id, serviceIds, t);
+      await replaceOrderItems(order.id, orderItemsData, now, t);
 
       const updatedOrder = await recalculateOrderTotal(order.id, t);
       createdOrderId = order.id;
@@ -317,7 +408,6 @@ async function createOrder(data, user) {
   try {
     await runWithDbRetry(() => incrementCustomerStatsOnCreate(customer.id, orderTotal, now));
   } catch (err) {
-    // Order is already committed; stats can be reconciled later without failing the create.
     if (!isRetryableDbError(err)) throw err;
   }
 
@@ -334,10 +424,22 @@ async function updateOrder(orderId, data, user) {
   if (!order) throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
 
   const oldStatus = order.order_status;
+  const previousEstimatedCompletion = order.estimated_completion_date;
+  const previousPickedUp = Boolean(order.picked_up);
+
   const allowed = [
-    'assigned_to', 'order_status', 'payment_status', 'discount_amount',
-    'delivery_notes', 'special_instructions', 'pickup_date', 'delivery_date',
-    'estimated_completion_date', 'completed_at',
+    'assigned_to',
+    'order_status',
+    'payment_status',
+    'discount_amount',
+    'delivery_notes',
+    'special_instructions',
+    'pickup_date',
+    'delivery_date',
+    'delivery_time',
+    'estimated_completion_date',
+    'completed_at',
+    'picked_up',
   ];
 
   for (const field of allowed) {
@@ -351,10 +453,54 @@ async function updateOrder(orderId, data, user) {
     order.completed_at = new Date();
   }
 
+  let pickedUpAtForSms = null;
+  if (data.picked_up !== undefined) {
+    if (data.picked_up && !previousPickedUp) {
+      order.picked_up = true;
+      order.picked_up_at = order.picked_up_at || new Date();
+      pickedUpAtForSms = order.picked_up_at;
+    } else if (!data.picked_up) {
+      order.picked_up = false;
+      order.picked_up_at = null;
+    }
+  }
+
+  const hasServiceIds = data.service_ids !== undefined;
+  const hasItems = data.order_items_data !== undefined;
+  let serviceIds = null;
+  let orderItemsData = null;
+
+  if (hasServiceIds) {
+    serviceIds = normalizeServiceIds(data.service_ids);
+    if (!serviceIds.length) {
+      throw new AppError('VALIDATION_ERROR', 'At least one service is required', 400);
+    }
+  }
+  if (hasItems) {
+    orderItemsData = normalizeOrderItemsData(data.order_items_data);
+    if (!orderItemsData.length) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        'At least one order item with dirty or clean quantity is required',
+        400
+      );
+    }
+  }
+
+  const now = new Date();
+
   await sequelize.transaction(async (t) => {
+    if (hasServiceIds) {
+      await validateServicesExist(serviceIds, t);
+      await replaceOrderServices(order.id, serviceIds, t);
+    }
+    if (hasItems) {
+      await replaceOrderItems(order.id, orderItemsData, now, t);
+    }
+
     await order.save({ transaction: t });
 
-    if (data.discount_amount !== undefined) {
+    if (data.discount_amount !== undefined || hasItems) {
       await recalculateOrderTotal(order.id, t);
     }
 
@@ -379,6 +525,38 @@ async function updateOrder(orderId, data, user) {
         console.error(
           JSON.stringify({
             event: 'order_notification_error',
+            orderId: order.id,
+            error: err.message,
+          })
+        );
+      });
+  }
+
+  if (data.estimated_completion_date !== undefined) {
+    orderNotificationService
+      .notifyEstimatedCompletionChange(
+        order.id,
+        previousEstimatedCompletion,
+        order.estimated_completion_date
+      )
+      .catch((err) => {
+        console.error(
+          JSON.stringify({
+            event: 'order_schedule_notification_error',
+            orderId: order.id,
+            error: err.message,
+          })
+        );
+      });
+  }
+
+  if (pickedUpAtForSms) {
+    orderNotificationService
+      .notifyOrderPickedUp(order.id, pickedUpAtForSms)
+      .catch((err) => {
+        console.error(
+          JSON.stringify({
+            event: 'order_pickup_notification_error',
             orderId: order.id,
             error: err.message,
           })

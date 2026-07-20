@@ -124,7 +124,6 @@ async function r05() {
   const suffix = Date.now();
   const payload = {
     username: `race_user_${suffix}`,
-    email: `race_${suffix}@bench.local`,
     password: 'RacePass123!',
     first_name: 'Race',
     last_name: 'Test',

@@ -53,7 +53,6 @@ describe('Security: Data exposure', () => {
       .set(tokens.employee.headers)
       .send({
         username: `staffcreate_${Date.now()}`,
-        email: `staffcreate_${Date.now()}@test.com`,
         first_name: 'Staff',
         last_name: 'Created',
         phone_number: `02${String(Date.now()).slice(-8)}`,

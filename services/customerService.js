@@ -4,11 +4,9 @@ const { hashPassword } = require('./authService');
 const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
 const { AppError } = require('../utils/errors');
 
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
 function validateRegistrationFields(data, requirePassword = true) {
   const required = [
-    'username', 'email', 'first_name', 'last_name',
+    'username', 'first_name',
     'phone_number', 'whatsapp_number', 'address', 'preferred_contact_method',
   ];
   if (requirePassword) required.push('password');
@@ -17,10 +15,6 @@ function validateRegistrationFields(data, requirePassword = true) {
     if (!data[field] || String(data[field]).trim() === '') {
       throw new AppError('MISSING_FIELDS', 'Required fields missing', 400);
     }
-  }
-
-  if (!EMAIL_REGEX.test(data.email)) {
-    throw new AppError('INVALID_EMAIL', 'Invalid email format', 422);
   }
 
   if (requirePassword && data.password.length < 8) {
@@ -33,22 +27,15 @@ function validateRegistrationFields(data, requirePassword = true) {
 }
 
 async function checkUniqueness(data, excludeUserId = null) {
-  const userWhere = [];
-  if (data.username) userWhere.push({ username: data.username });
-  if (data.email) userWhere.push({ email: data.email });
-
-  if (userWhere.length) {
+  if (data.username) {
     const userExists = await User.findOne({
       where: {
-        [Op.or]: userWhere,
+        username: data.username,
         ...(excludeUserId ? { id: { [Op.ne]: excludeUserId } } : {}),
       },
     });
     if (userExists) {
-      if (userExists.username === data.username) {
-        throw new AppError('USERNAME_EXISTS', 'Username already taken', 409);
-      }
-      throw new AppError('EMAIL_EXISTS', 'Email already registered', 409);
+      throw new AppError('USERNAME_EXISTS', 'Username already taken', 409);
     }
   }
 
@@ -74,10 +61,9 @@ async function registerCustomer(data) {
     const user = await User.create(
       {
         username: data.username,
-        email: data.email,
         password_hash,
         first_name: data.first_name,
-        last_name: data.last_name,
+        last_name: data.last_name || '',
         role: 'client',
         is_active: true,
         is_staff: false,
@@ -117,10 +103,9 @@ async function createCustomerByStaff(data, creator) {
     const user = await User.create(
       {
         username: data.username,
-        email: data.email,
         password_hash,
         first_name: data.first_name,
-        last_name: data.last_name,
+        last_name: data.last_name || '',
         role: 'client',
         is_active: true,
         is_staff: false,

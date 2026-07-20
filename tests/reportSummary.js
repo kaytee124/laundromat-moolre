@@ -9,7 +9,7 @@ const SECURITY_NOTES = [
   '[SECURITY] Refresh token stored in HttpOnly cookie — access token remains in JSON; ensure HTTPS in production.',
   '[SECURITY] CSRF double-submit required on login, refresh, logout, and silent token refresh.',
   '[SECURITY] No express.json() body size limit — oversized payloads can exhaust memory (app-layer DoS).',
-  '[SECURITY] Register returns distinct USERNAME_EXISTS vs EMAIL_EXISTS — enables user enumeration.',
+  '[SECURITY] Register returns USERNAME_EXISTS for duplicate usernames.',
   '[SECURITY] default_password returned in staff-create API responses — information disclosure.',
   '[SECURITY] LIKE search uses unescaped % wildcards — can cause slow queries under search abuse.',
   '[SECURITY] No helmet() security headers — add when serving any HTML UI.',

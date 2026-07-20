@@ -16,20 +16,14 @@ const {
 } = require('../utils/serializers');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
-async function createStaffUser({ email, username, first_name, last_name, role, flags }, updatedBy) {
-  const existing = await User.findOne({
-    where: { [Op.or]: [{ email }, { username }] },
-  });
+async function createStaffUser({ username, first_name, last_name, role, flags }, updatedBy) {
+  const existing = await User.findOne({ where: { username } });
   if (existing) {
-    if (existing.email === email) {
-      throw new AppError('EMAIL_EXISTS', 'Email already registered', 409);
-    }
     throw new AppError('USERNAME_EXISTS', 'Username already taken', 409);
   }
 
   const password_hash = await hashPassword(DEFAULT_CUSTOMER_PASSWORD);
   const user = await User.create({
-    email,
     username,
     first_name: first_name || '',
     last_name: last_name || '',
@@ -126,13 +120,6 @@ async function updateSelfProfile(user, data, allowedFields) {
     if (exists) throw new AppError('VALIDATION_ERROR', 'Username already exists', 400);
   }
 
-  if (updates.email) {
-    const exists = await User.findOne({
-      where: { email: updates.email, id: { [Op.ne]: dbUser.id } },
-    });
-    if (exists) throw new AppError('VALIDATION_ERROR', 'Email already exists', 400);
-  }
-
   Object.assign(dbUser, updates);
   dbUser.updated_at = new Date();
   dbUser.updated_by = dbUser.id;
@@ -141,7 +128,7 @@ async function updateSelfProfile(user, data, allowedFields) {
 }
 
 async function updateClientSelf(user, data) {
-  const userFields = ['username', 'email', 'first_name', 'last_name'];
+  const userFields = ['username', 'first_name', 'last_name'];
   await updateSelfProfile(user, data, userFields);
 
   const customerFields = ['phone_number', 'whatsapp_number', 'address', 'preferred_contact_method'];
@@ -177,7 +164,7 @@ async function updateEmployeeByAdmin(employeeId, data, admin) {
   const employee = await User.findOne({ where: { id: employeeId, role: 'employee' } });
   if (!employee) throw new AppError('NOT_FOUND', 'Employee not found', 404);
 
-  const allowed = ['email', 'first_name', 'last_name', 'is_active', 'is_staff'];
+  const allowed = ['first_name', 'last_name', 'is_active', 'is_staff'];
   for (const field of allowed) {
     if (data[field] !== undefined) employee[field] = data[field];
   }
@@ -195,16 +182,9 @@ async function updateClientByStaff(clientId, data, staff) {
     throw new AppError('VALIDATION_ERROR', 'Username cannot be changed by other users. Only the user themselves can change their username.', 400);
   }
 
-  const userFields = ['email', 'first_name', 'last_name', 'is_active', 'is_staff'];
+  const userFields = ['first_name', 'last_name', 'is_active', 'is_staff'];
   for (const field of userFields) {
     if (data[field] !== undefined) client[field] = data[field];
-  }
-
-  if (data.email) {
-    const exists = await User.findOne({
-      where: { email: data.email, id: { [Op.ne]: client.id } },
-    });
-    if (exists) throw new AppError('VALIDATION_ERROR', 'Email already exists', 400);
   }
 
   await client.save();
@@ -246,8 +226,8 @@ async function superadminUpdateUser(targetUser, data, superadmin, expectedRole) 
   const originalRole = user.role;
   const isRoleLocked = ['client', 'admin'].includes(expectedRole);
   const userFields = isRoleLocked
-    ? ['email', 'first_name', 'last_name', 'is_active']
-    : ['email', 'first_name', 'last_name', 'role', 'is_active', 'is_staff', 'is_superuser'];
+    ? ['first_name', 'last_name', 'is_active']
+    : ['first_name', 'last_name', 'role', 'is_active', 'is_staff', 'is_superuser'];
 
   for (const field of userFields) {
     if (data[field] !== undefined) user[field] = data[field];
@@ -317,7 +297,7 @@ async function superadminUpdateUser(targetUser, data, superadmin, expectedRole) 
   return formatSuperadminUserDetail(updated);
 }
 
-// List query filters: page, page_size, search (username/email/name), is_active
+// List query filters: page, page_size, search (username/name), is_active
 function buildUserListQuery(role, query) {
   const where = { role };
   if (query.is_active !== undefined) {
@@ -327,7 +307,6 @@ function buildUserListQuery(role, query) {
   if (query.search) {
     where[Op.or] = [
       { username: { [Op.like]: `%${query.search}%` } },
-      { email: { [Op.like]: `%${query.search}%` } },
       { first_name: { [Op.like]: `%${query.search}%` } },
       { last_name: { [Op.like]: `%${query.search}%` } },
     ];

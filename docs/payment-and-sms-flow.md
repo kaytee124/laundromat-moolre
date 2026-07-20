@@ -21,6 +21,10 @@ Configure in `.env`:
 - `MOOLRE_WEBHOOK_URL` → must point to `POST /api/payments/moolre/webhook/`
 - `MOOLRE_WEBHOOK_SECRET` — validated on each webhook
 - `MOOLRE_REDIRECT_URL` — optional frontend page after checkout
+- `MOOLRE_API_BASE` — API host (e.g. `https://api.moolre.com`)
+- `MOOLRE_MERCHANT_EMAIL` — merchant email for Generate Payment Link
+- `MOOLRE_PATH_EMBED_LINK`, `MOOLRE_PATH_TRANSACT_STATUS`, `MOOLRE_PATH_TRANSACT_PAYMENT`, `MOOLRE_PATH_SMS_SEND` — path suffixes under `MOOLRE_API_BASE`
+- `DEFAULT_CUSTOMER_PASSWORD` — default password for staff-created users
 
 ### SMS (Moolre)
 
@@ -132,9 +136,12 @@ This triggers a **completion SMS** asynchronously:
 | Recipient | `Customer.phone_number` from DB → formatted to `233XXXXXXXXX` |
 | In-progress message | `Your order {order_number} is now in progress. Thank you for choosing us.` |
 | Completed message | `Your order {order_number} is ready for pickup/delivery. Thank you.` |
-| Moolre API | `POST https://api.moolre.com/open/sms/send` with `X-API-VASKEY` |
+| Schedule earlier | `Your order {order_number} estimated completion was moved earlier to {date}. Good news — we'll finish sooner.` |
+| Schedule later | `Sorry for the inconvenience. Your order {order_number} estimated completion is now {date}. We'll still complete your items carefully and on the updated schedule.` |
+| Picked up | `Thank you for using our services. Your order {order_number} was picked up on {date} at {time}. We look forward to serving you again.` |
+| Moolre API | `POST {MOOLRE_API_BASE}{MOOLRE_PATH_SMS_SEND}` with `X-API-VASKEY` |
 
-SMS is sent **once per status transition** (no duplicate in-progress SMS on further payments once already `in_progress`).
+SMS is sent **once per status transition** (no duplicate in-progress SMS on further payments once already `in_progress`). Changing `estimated_completion_date` or setting `picked_up: true` also sends SMS.
 
 If SMS fails, the server logs `order_sms_failed` and the payment/order API still returns success.
 

@@ -14,6 +14,16 @@ delete process.env.MOOLRE_REDIRECT_URL;
 process.env.MOOLRE_WEBHOOK_SECRET = process.env.MOOLRE_WEBHOOK_SECRET || 'test-webhook-secret';
 process.env.MOOLRE_SMS_VAS_KEY = process.env.MOOLRE_SMS_VAS_KEY || 'test-sms-vas-key';
 process.env.MOOLRE_SMS_SENDER_ID = process.env.MOOLRE_SMS_SENDER_ID || 'TESTSENDER';
+process.env.MOOLRE_API_BASE = process.env.MOOLRE_API_BASE || 'https://api.moolre.com';
+process.env.MOOLRE_MERCHANT_EMAIL = process.env.MOOLRE_MERCHANT_EMAIL || 'test@example.com';
+process.env.MOOLRE_PATH_EMBED_LINK = process.env.MOOLRE_PATH_EMBED_LINK || '/embed/link';
+process.env.MOOLRE_PATH_TRANSACT_STATUS =
+  process.env.MOOLRE_PATH_TRANSACT_STATUS || '/open/transact/status';
+process.env.MOOLRE_PATH_TRANSACT_PAYMENT =
+  process.env.MOOLRE_PATH_TRANSACT_PAYMENT || '/open/transact/payment';
+process.env.MOOLRE_PATH_SMS_SEND = process.env.MOOLRE_PATH_SMS_SEND || '/open/sms/send';
+process.env.DEFAULT_CUSTOMER_PASSWORD = process.env.DEFAULT_CUSTOMER_PASSWORD || 'moolre123!';
+
 
 const { sequelize } = require('../models');
 const { truncateAll, closeDb } = require('./helpers/db');

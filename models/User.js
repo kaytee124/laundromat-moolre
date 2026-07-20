@@ -13,7 +13,6 @@ module.exports = (sequelize) => {
     {
       id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
       username: { type: DataTypes.STRING(150), allowNull: false, unique: true },
-      email: { type: DataTypes.STRING(254), allowNull: false, unique: true },
       password_hash: { type: DataTypes.STRING(128), allowNull: false },
       first_name: { type: DataTypes.STRING(150), allowNull: false, defaultValue: '' },
       last_name: { type: DataTypes.STRING(150), allowNull: false, defaultValue: '' },

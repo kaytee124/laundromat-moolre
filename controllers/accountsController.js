@@ -81,7 +81,7 @@ async function updateAdminSelf(req, res) {
   const user = await userService.updateSelfProfile(
     req.user,
     req.body,
-    ['username', 'email', 'first_name', 'last_name']
+    ['username', 'first_name', 'last_name']
   );
   res.json({ message: 'Profile updated successfully', user });
 }
@@ -109,7 +109,7 @@ async function updateEmployeeSelf(req, res) {
   const user = await userService.updateSelfProfile(
     req.user,
     req.body,
-    ['username', 'email', 'first_name', 'last_name']
+    ['username', 'first_name', 'last_name']
   );
   res.json({ message: 'Profile updated successfully', user });
 }
@@ -173,7 +173,7 @@ async function updateSuperadminSelf(req, res) {
   const user = await userService.updateSelfProfile(
     req.user,
     req.body,
-    ['username', 'email', 'first_name', 'last_name']
+    ['username', 'first_name', 'last_name']
   );
   res.json({ message: 'Profile updated successfully', user });
 }

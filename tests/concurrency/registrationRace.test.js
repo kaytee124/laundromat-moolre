@@ -1,15 +1,13 @@
 const request = require('supertest');
 const app = require('../../app');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 
 describe('Concurrency: registration race', () => {
   it('R05: only one parallel registration succeeds for same phone', async () => {
     const username = uniqueUsername('race');
-    const email = uniqueEmail('race');
     const phone = uniquePhone();
     const payload = {
       username,
-      email,
       password: 'RacePass123!',
       first_name: 'Race',
       last_name: 'User',

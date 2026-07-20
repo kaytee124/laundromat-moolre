@@ -25,10 +25,10 @@ const { loadJson, writeJson, ensureResultsDirs, resultPath } = require('../lib/p
 const fs = require('fs');
 
 const BENCH_USERS = [
-  { username: 'bench_superadmin', email: 'bench_superadmin@benchmark.local', role: 'superadmin', password: 'BenchPass123!', is_staff: 1, is_superuser: 1 },
-  { username: 'bench_admin', email: 'bench_admin@benchmark.local', role: 'admin', password: 'BenchPass123!', is_staff: 1, is_superuser: 0 },
-  { username: 'bench_employee', email: 'bench_employee@benchmark.local', role: 'employee', password: 'BenchPass123!', is_staff: 1, is_superuser: 0 },
-  { username: 'bench_client', email: 'bench_client@benchmark.local', role: 'client', password: 'BenchClient123!', is_staff: 0, is_superuser: 0 },
+  { username: 'bench_superadmin', role: 'superadmin', password: 'BenchPass123!', is_staff: 1, is_superuser: 1 },
+  { username: 'bench_admin', role: 'admin', password: 'BenchPass123!', is_staff: 1, is_superuser: 0 },
+  { username: 'bench_employee', role: 'employee', password: 'BenchPass123!', is_staff: 1, is_superuser: 0 },
+  { username: 'bench_client', role: 'client', password: 'BenchClient123!', is_staff: 0, is_superuser: 0 },
 ];
 
 const PHASES = ['users', 'customers', 'services', 'orders', 'order_items', 'payments', 'status_history', 'refresh_tokens', 'done'];
@@ -68,7 +68,6 @@ function buildUserRow(id, u, hash, now) {
   return [
     id,
     u.username,
-    u.email,
     hash,
     u.first_name || u.username,
     u.last_name || 'Bench',
@@ -88,9 +87,9 @@ async function insertBenchmarkUsers(conn, hashes, now) {
     const u = BENCH_USERS[i];
     const hash = u.role === 'client' ? hashes.clientHash : hashes.staffHash;
     const [result] = await conn.query(
-      `INSERT INTO users (username, email, password_hash, first_name, last_name, role, is_active, is_staff, is_superuser, date_joined, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NULL)`,
-      [u.username, u.email, hash, u.username, 'Bench', u.role, u.is_staff, u.is_superuser, now, now]
+      `INSERT INTO users (username, password_hash, first_name, last_name, role, is_active, is_staff, is_superuser, date_joined, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NULL)`,
+      [u.username, hash, u.username, 'Bench', u.role, u.is_staff, u.is_superuser, now, now]
     );
     ids[u.role === 'superadmin' ? 'superadmin' : u.role === 'admin' ? 'admin' : u.role === 'employee' ? 'employee' : 'client'] = result.insertId;
   }
@@ -110,10 +109,10 @@ async function bulkInsertUsers(conn, volumes, rng, hashes, benchIds, batchSize, 
 
   const insertBatch = async (rows) => {
     if (!rows.length) return;
-    const placeholders = rows.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+    const placeholders = rows.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
     const flat = rows.flat();
     await conn.query(
-      `INSERT INTO users (id, username, email, password_hash, first_name, last_name, role, is_active, is_staff, is_superuser, date_joined, updated_at, updated_by)
+      `INSERT INTO users (id, username, password_hash, first_name, last_name, role, is_active, is_staff, is_superuser, date_joined, updated_at, updated_by)
        VALUES ${placeholders}`,
       flat
     );
@@ -128,11 +127,10 @@ async function bulkInsertUsers(conn, volumes, rng, hashes, benchIds, batchSize, 
     const role = isStaff ? (rng() < 0.3 ? 'admin' : 'employee') : 'client';
     const id = nextId++;
     const username = `user_${id}`;
-    const email = `user_${id}@bench.local`;
     const hash = hashes.bulkHash;
     const is_staff = role !== 'client' ? 1 : 0;
     const is_superuser = 0;
-    batch.push(buildUserRow(id, { username, email, role, is_staff, is_superuser }, hash, now));
+    batch.push(buildUserRow(id, { username, role, is_staff, is_superuser }, hash, now));
 
     if (role !== 'client') {
       staffDone++;

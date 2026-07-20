@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles, login, logoutWithAgent, refreshWithAgent, createAgent, fetchCsrf } = require('../helpers/auth');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 const { User } = require('../../models');
 
 describe('Accounts API', () => {
@@ -23,7 +23,22 @@ describe('Accounts API', () => {
     });
 
     it('returns requires_password_change for default staff password', async () => {
-      const res = await login(ctx.admin.username, ctx.passwords.staff);
+      const { DEFAULT_CUSTOMER_PASSWORD } = require('../../utils/constants');
+      const { hashPassword } = require('../../services/authService');
+      const username = uniqueUsername('defpass');
+      await User.create({
+        username,
+        password_hash: await hashPassword(DEFAULT_CUSTOMER_PASSWORD),
+        first_name: 'Default',
+        last_name: 'Pass',
+        role: 'admin',
+        is_active: true,
+        is_staff: true,
+        is_superuser: false,
+        date_joined: new Date(),
+        updated_at: new Date(),
+      });
+      const res = await login(username, DEFAULT_CUSTOMER_PASSWORD);
       expect(res.status).toBe(200);
       expect(res.body.requires_password_change).toBe(true);
     });
@@ -127,7 +142,6 @@ describe('Accounts API', () => {
         .set(tokens.superadmin.headers)
         .send({
           username: uniqueUsername('newadmin'),
-          email: uniqueEmail('newadmin'),
           first_name: 'New',
           last_name: 'Admin',
         });
@@ -141,7 +155,6 @@ describe('Accounts API', () => {
         .set(tokens.admin.headers)
         .send({
           username: uniqueUsername('failadmin'),
-          email: uniqueEmail('failadmin'),
           first_name: 'Fail',
           last_name: 'Admin',
         });
@@ -203,7 +216,6 @@ describe('Accounts API', () => {
         .set(tokens.admin.headers)
         .send({
           username: uniqueUsername('newemp'),
-          email: uniqueEmail('newemp'),
           first_name: 'New',
           last_name: 'Employee',
         });
@@ -248,7 +260,6 @@ describe('Accounts API', () => {
         .set(tokens.superadmin.headers)
         .send({
           username: uniqueUsername('newsuper'),
-          email: uniqueEmail('newsuper'),
           first_name: 'New',
           last_name: 'Super',
         });
@@ -384,7 +395,6 @@ describe('Accounts API', () => {
         .post('/api/accounts/superadmin/create/')
         .send({
           username: uniqueUsername('bootstrap'),
-          email: uniqueEmail('bootstrap'),
           first_name: 'Bootstrap',
           last_name: 'Super',
         });
@@ -398,7 +408,6 @@ describe('Accounts API', () => {
         .post('/api/accounts/superadmin/create/')
         .send({
           username: uniqueUsername('bootstrap2'),
-          email: uniqueEmail('bootstrap2'),
         });
 
       expect(res.status).toBe(401);
@@ -411,7 +420,6 @@ describe('Accounts API', () => {
         .set(tokens.admin.headers)
         .send({
           username: uniqueUsername('bootstrap3'),
-          email: uniqueEmail('bootstrap3'),
         });
 
       expect(res.status).toBe(403);

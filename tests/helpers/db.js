@@ -6,6 +6,7 @@ const TABLES = [
   'refresh_tokens',
   'payments',
   'order_items',
+  'order_services',
   'orders',
   'customers',
   'services',

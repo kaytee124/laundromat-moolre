@@ -23,7 +23,6 @@ const ERROR_CATALOG = {
   INVALID_DATE_RANGE: { error_code: 'INVALID_DATE_RANGE', message: 'End date must be after start date', status_code: 400 },
   DATE_RANGE_TOO_LARGE: { error_code: 'DATE_RANGE_TOO_LARGE', message: 'Date range cannot exceed 366 days', status_code: 400 },
   USERNAME_EXISTS: { error_code: 'USERNAME_EXISTS', message: 'Username already taken', status_code: 409 },
-  EMAIL_EXISTS: { error_code: 'EMAIL_EXISTS', message: 'Email already registered', status_code: 409 },
   PHONE_EXISTS: { error_code: 'PHONE_EXISTS', message: 'Phone number already registered', status_code: 409 },
   INVALID_PASSWORD: { error_code: 'INVALID_PASSWORD', message: 'Password must be at least 8 characters', status_code: 422 },
   INVALID_DATE_FORMAT: { error_code: 'INVALID_DATE_FORMAT', message: 'Dates must be in YYYY-MM-DD format', status_code: 422 },
@@ -37,7 +36,7 @@ const DEFAULT_ERROR_KEYS = {
   401: ['NO_TOKEN', 'INVALID_TOKEN'],
   403: ['PERMISSION_DENIED', 'CSRF_VALIDATION_FAILED'],
   404: ['NOT_FOUND', 'ORDER_NOT_FOUND'],
-  409: ['USERNAME_EXISTS', 'EMAIL_EXISTS'],
+  409: ['USERNAME_EXISTS'],
   429: ['RATE_LIMIT_EXCEEDED'],
   422: ['VALIDATION_ERROR', 'INVALID_PASSWORD'],
   500: ['MOOLRE_ERROR', 'SERVER_ERROR'],
@@ -74,7 +73,6 @@ const stdErrors = {
 const EXAMPLE_USER = {
   id: 1,
   username: 'client1',
-  email: 'client1@example.com',
   first_name: 'Jane',
   last_name: 'Doe',
   role: 'client',
@@ -87,11 +85,8 @@ const EXAMPLE_SERVICE = {
   id: 1,
   name: 'Wash & Fold',
   description: 'Standard laundry service',
-  price: '25.00',
-  unit: 'per item',
   category: 'wash',
-  estimated_days: 2,
-  is_active: true,
+  status: 'active',
 };
 
 const EXAMPLE_ORDER = {
@@ -104,18 +99,49 @@ const EXAMPLE_ORDER = {
   assigned_to_username: 'employee1',
   order_status: 'pending',
   payment_status: 'pending',
-  total_amount: '50.00',
+  total_amount: '89.50',
   amount_paid: '0.00',
-  discount_amount: '0.00',
+  discount_amount: '5.00',
+  delivery_date: '2026-07-22',
+  delivery_time: '14:30:00',
+  estimated_completion_date: '2026-07-21',
+  picked_up: false,
+  picked_up_at: null,
+  service_ids: [1, 3],
+  services: [
+    {
+      id: 1,
+      name: 'Wash, Dry & Fold',
+      description: 'Wash dry and fold',
+      category: 'wash',
+      status: 'active',
+    },
+    {
+      id: 3,
+      name: 'Ironing Only',
+      description: 'Press only',
+      category: 'iron',
+      status: 'active',
+    },
+  ],
   order_items: [
     {
       id: 1,
-      service_id: 1,
-      service_name: 'Wash & Fold',
-      item_name: 'Wash & Fold',
-      quantity: 2,
-      unit_price: '25.00',
-      subtotal: '50.00',
+      item_name: 'TOPS',
+      dirty_quantity: 5,
+      clean_quantity: 0,
+      unit_price: '12.50',
+      subtotal: '62.50',
+      notes: '',
+    },
+    {
+      id: 2,
+      item_name: 'BOTTOMS',
+      dirty_quantity: 0,
+      clean_quantity: 4,
+      unit_price: '8.00',
+      subtotal: '32.00',
+      notes: 'press only',
     },
   ],
 };
@@ -441,12 +467,14 @@ const spec = {
       '- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.',
       '',
       '**Order SMS notifications (side effects)**',
-      '- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order status changes.',
+      '- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order changes.',
       '- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).',
       '- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).',
       '- Triggers:',
       '  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`',
       '  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`',
+      '  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated',
+      '  - **picked up** — when `picked_up` flips to `true`',
       '- SMS failures are logged only; they do **not** fail payment or order API responses.',
       '- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.',
       '',
@@ -1134,7 +1162,8 @@ const spec = {
         tags: ['Orders'],
         summary: 'Update order',
         description:
-          'Staff may update order fields including `order_status`. Setting `order_status` to `in_progress` or `completed` ' +
+          'Staff may update order fields including `order_status`, `service_ids`, `order_items_data`, `estimated_completion_date`, and `picked_up`. ' +
+          'Setting `order_status` to `in_progress` or `completed`, changing the estimated completion date, or marking `picked_up: true` ' +
           'triggers a customer SMS asynchronously (fire-and-forget; failures are logged only). ' +
           'Payment-driven auto-`in_progress` at the 30% threshold is handled by the payment webhook path, not this endpoint.',
         security: bearer,
@@ -1374,7 +1403,6 @@ const spec = {
         properties: {
           id: { type: 'integer' },
           username: { type: 'string' },
-          email: { type: 'string', format: 'email' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           role: { type: 'string', enum: ['superadmin', 'admin', 'employee', 'client'] },
@@ -1436,7 +1464,6 @@ const spec = {
           username: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          email: { type: 'string' },
           status: { type: 'string' },
           phone_number: { type: 'string', nullable: true },
           whatsapp_number: { type: 'string', nullable: true },
@@ -1467,7 +1494,6 @@ const spec = {
         properties: {
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          email: { type: 'string' },
           phone_number: { type: 'string' },
           whatsapp_number: { type: 'string' },
           address: { type: 'string' },
@@ -1476,10 +1502,9 @@ const spec = {
       },
       StaffCreateRequest: {
         type: 'object',
-        required: ['username', 'email', 'first_name', 'last_name'],
+        required: ['username', 'first_name'],
         properties: {
           username: { type: 'string' },
-          email: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
         },
@@ -1497,7 +1522,6 @@ const spec = {
         type: 'object',
         properties: {
           username: { type: 'string' },
-          email: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
         },
@@ -1507,7 +1531,6 @@ const spec = {
         properties: {
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          email: { type: 'string' },
           phone_number: { type: 'string' },
           whatsapp_number: { type: 'string' },
           address: { type: 'string' },
@@ -1519,7 +1542,6 @@ const spec = {
         type: 'object',
         properties: {
           username: { type: 'string' },
-          email: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           is_active: { type: 'boolean' },
@@ -1555,7 +1577,6 @@ const spec = {
           id: { type: 'integer' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          email: { type: 'string' },
           status: { type: 'string' },
         },
       },
@@ -1594,12 +1615,11 @@ const spec = {
       CustomerRegisterRequest: {
         type: 'object',
         required: [
-          'username', 'email', 'password', 'first_name', 'last_name',
+          'username', 'password', 'first_name',
           'phone_number', 'whatsapp_number', 'address', 'preferred_contact_method',
         ],
         properties: {
           username: { type: 'string' },
-          email: { type: 'string' },
           password: { type: 'string', minLength: 8 },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
@@ -1620,12 +1640,11 @@ const spec = {
       CustomerStaffCreateRequest: {
         type: 'object',
         required: [
-          'username', 'email', 'first_name', 'last_name',
+          'username', 'first_name',
           'phone_number', 'whatsapp_number', 'address', 'preferred_contact_method',
         ],
         properties: {
           username: { type: 'string' },
-          email: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
           phone_number: { type: 'string' },
@@ -1650,11 +1669,8 @@ const spec = {
           id: { type: 'integer' },
           name: { type: 'string' },
           description: { type: 'string', nullable: true },
-          price: { type: 'string' },
-          unit: { type: 'string' },
           category: { type: 'string', nullable: true },
-          estimated_days: { type: 'integer', nullable: true },
-          is_active: { type: 'boolean' },
+          status: { type: 'string', enum: ['active', 'inactive'] },
         },
       },
       ServiceListResponse: {
@@ -1673,14 +1689,12 @@ const spec = {
       },
       ServiceCreateRequest: {
         type: 'object',
-        required: ['name', 'price'],
+        required: ['name'],
         properties: {
           name: { type: 'string' },
           description: { type: 'string' },
-          price: { type: 'number' },
-          unit: { type: 'string' },
           category: { type: 'string' },
-          estimated_days: { type: 'integer' },
+          status: { type: 'string', enum: ['active', 'inactive'] },
         },
       },
       ServiceUpdateRequest: {
@@ -1688,11 +1702,8 @@ const spec = {
         properties: {
           name: { type: 'string' },
           description: { type: 'string' },
-          price: { type: 'number' },
-          unit: { type: 'string' },
           category: { type: 'string' },
-          estimated_days: { type: 'integer' },
-          is_active: { type: 'boolean' },
+          status: { type: 'string', enum: ['active', 'inactive'] },
         },
       },
       ServiceMutationResponse: {
@@ -1707,14 +1718,22 @@ const spec = {
         type: 'object',
         properties: {
           id: { type: 'integer' },
-          service_id: { type: 'integer' },
-          service_name: { type: 'string', nullable: true },
           item_name: { type: 'string' },
-          description: { type: 'string', nullable: true },
-          quantity: { type: 'integer' },
+          dirty_quantity: { type: 'integer' },
+          clean_quantity: { type: 'integer' },
           unit_price: { type: 'string' },
           subtotal: { type: 'string' },
-          notes: { type: 'string' },
+          notes: { type: 'string', nullable: true },
+        },
+      },
+      OrderServiceSummary: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          category: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['active', 'inactive'] },
         },
       },
       Order: {
@@ -1736,8 +1755,13 @@ const spec = {
           special_instructions: { type: 'string', nullable: true },
           pickup_date: { type: 'string', format: 'date', nullable: true },
           delivery_date: { type: 'string', format: 'date', nullable: true },
+          delivery_time: { type: 'string', nullable: true, description: 'HH:MM:SS' },
           estimated_completion_date: { type: 'string', format: 'date', nullable: true },
           completed_at: { type: 'string', format: 'date-time', nullable: true },
+          picked_up: { type: 'boolean' },
+          picked_up_at: { type: 'string', format: 'date-time', nullable: true },
+          service_ids: { type: 'array', items: { type: 'integer' } },
+          services: { type: 'array', items: { $ref: '#/components/schemas/OrderServiceSummary' } },
           order_items: { type: 'array', items: { $ref: '#/components/schemas/OrderItem' } },
         },
       },
@@ -1767,9 +1791,15 @@ const spec = {
       },
       OrderCreateRequest: {
         type: 'object',
-        required: ['customer_id', 'order_items_data'],
+        required: ['customer_id', 'service_ids', 'order_items_data'],
         properties: {
           customer_id: { type: 'integer' },
+          service_ids: {
+            type: 'array',
+            minItems: 1,
+            items: { type: 'integer' },
+            description: 'Multi-select service IDs for the order',
+          },
           assigned_to: { type: 'integer' },
           order_status: { type: 'string' },
           payment_status: { type: 'string' },
@@ -1778,20 +1808,21 @@ const spec = {
           special_instructions: { type: 'string' },
           pickup_date: { type: 'string', format: 'date' },
           delivery_date: { type: 'string', format: 'date' },
+          delivery_time: { type: 'string', description: 'HH:MM or HH:MM:SS' },
           estimated_completion_date: { type: 'string', format: 'date' },
           order_items_data: {
             type: 'array',
             minItems: 1,
             items: {
               type: 'object',
-              required: ['service_id'],
+              required: ['item_name', 'unit_price'],
               properties: {
-                service_id: { type: 'integer' },
-                quantity: { type: 'integer', minimum: 1 },
+                item_name: { type: 'string', example: 'TOPS' },
+                dirty_quantity: { type: 'integer', minimum: 0 },
+                clean_quantity: { type: 'integer', minimum: 0 },
                 unit_price: { type: 'number' },
-                item_name: { type: 'string' },
+                notes: { type: 'string', description: 'Remarks' },
                 description: { type: 'string' },
-                notes: { type: 'string' },
               },
             },
           },
@@ -1808,8 +1839,24 @@ const spec = {
           special_instructions: { type: 'string' },
           pickup_date: { type: 'string', format: 'date' },
           delivery_date: { type: 'string', format: 'date' },
+          delivery_time: { type: 'string' },
           estimated_completion_date: { type: 'string', format: 'date' },
           completed_at: { type: 'string', format: 'date-time' },
+          picked_up: { type: 'boolean' },
+          service_ids: { type: 'array', items: { type: 'integer' } },
+          order_items_data: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                item_name: { type: 'string' },
+                dirty_quantity: { type: 'integer' },
+                clean_quantity: { type: 'integer' },
+                unit_price: { type: 'number' },
+                notes: { type: 'string' },
+              },
+            },
+          },
         },
       },
       OrderMutationResponse: {
@@ -2103,7 +2150,7 @@ const EXAMPLE_PAGINATED_USERS = {
   page: 1,
   page_size: 20,
   total_pages: 1,
-  results: [{ id: 2, first_name: 'Admin', last_name: 'User', email: 'admin@example.com', status: 'active' }],
+  results: [{ id: 2, first_name: 'Admin', last_name: 'User', status: 'active' }],
 };
 
 const EXAMPLE_PAGINATED_CLIENTS = {
@@ -2115,7 +2162,6 @@ const EXAMPLE_PAGINATED_CLIENTS = {
     id: 1,
     first_name: 'Jane',
     last_name: 'Doe',
-    email: 'client1@example.com',
     status: 'active',
     username: 'client1',
     phone_number: '0200000001',
@@ -2193,8 +2239,7 @@ function applyDocumentation(openApiSpec) {
       username: 'client1',
       first_name: 'Jane',
       last_name: 'Doe',
-      email: 'client1@example.com',
-      status: 'active',
+        status: 'active',
       phone_number: '0200000001',
       total_orders: 3,
       total_spent: '150.00',
@@ -2338,10 +2383,10 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/accounts/superadmin/create/', 'post')]: {
       401: errorResponse(401, 'Unauthorized after bootstrap', 'NO_TOKEN', 'INVALID_TOKEN'),
       403: errorResponse(403, 'Requires superadmin after bootstrap', 'PERMISSION_DENIED'),
-      409: errorResponse(409, 'Username or email conflict', 'USERNAME_EXISTS', 'EMAIL_EXISTS'),
+      409: errorResponse(409, 'Username conflict', 'USERNAME_EXISTS'),
     },
     [opKey('/api/customers/register/', 'post')]: {
-      409: errorResponse(409, 'Duplicate registration', 'USERNAME_EXISTS', 'EMAIL_EXISTS', 'PHONE_EXISTS'),
+      409: errorResponse(409, 'Duplicate registration', 'USERNAME_EXISTS', 'PHONE_EXISTS'),
       422: errorResponse(422, 'Validation failed', 'INVALID_PASSWORD', 'VALIDATION_ERROR'),
     },
     [opKey('/api/payments/initialize/', 'post')]: {
@@ -2380,7 +2425,6 @@ function applyDocumentation(openApiSpec) {
     },
     [opKey('/api/customers/register/', 'post')]: {
       username: 'newclient',
-      email: 'new@example.com',
       password: 'securepass1',
       first_name: 'New',
       last_name: 'Client',
@@ -2409,7 +2453,14 @@ function applyDocumentation(openApiSpec) {
     },
     [opKey('/api/orders/create/', 'post')]: {
       customer_id: 1,
-      order_items_data: [{ service_id: 1, quantity: 2 }],
+      service_ids: [1, 3],
+      delivery_date: '2026-07-22',
+      delivery_time: '14:30',
+      discount_amount: 0,
+      order_items_data: [
+        { item_name: 'TOPS', dirty_quantity: 5, clean_quantity: 0, unit_price: 12.5, notes: '' },
+        { item_name: 'BOTTOMS', dirty_quantity: 0, clean_quantity: 4, unit_price: 8, notes: 'press only' },
+      ],
     },
   };
 

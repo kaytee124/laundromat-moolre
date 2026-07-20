@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
-const { User, Customer, Order, Payment, sequelize } = require('../models');
+const { Customer, Order, Payment, sequelize } = require('../models');
 const { AppError } = require('../utils/errors');
 const moolreService = require('./moolreService');
 const moolreConfig = require('../config/moolre');
@@ -142,11 +142,6 @@ async function createMoolreWebPayment({
   payerPhone,
   createdBy,
 }) {
-  const customerUser = await User.findByPk(customer.user_id);
-  if (!customerUser?.email) {
-    throw new AppError('EMAIL_NOT_FOUND', 'Customer email not found. Please update your profile.', 400);
-  }
-
   const externalref = generateExternalRef(order.id);
 
   const payment = await sequelize.transaction(async (t) => {
@@ -173,7 +168,7 @@ async function createMoolreWebPayment({
 
   try {
     const response = await moolreService.generatePaymentLink({
-      email: customerUser.email,
+      email: moolreConfig.merchantEmail,
       amount: paymentAmount.toFixed(2),
       externalref,
       metadata: {

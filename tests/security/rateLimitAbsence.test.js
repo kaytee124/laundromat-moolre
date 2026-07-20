@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
-const { uniqueUsername, uniqueEmail, uniquePhone } = require('../helpers/fixtures');
+const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 const { createAgent, fetchCsrf } = require('../helpers/auth');
 const { recordFinding } = require('../reportSummary');
 
@@ -29,7 +29,6 @@ describe('Security: Rate limit absence', () => {
         .post('/api/customers/register/')
         .send({
           username: uniqueUsername('spam'),
-          email: uniqueEmail('spam'),
           password: 'short',
           first_name: 'Spam',
           last_name: 'User',

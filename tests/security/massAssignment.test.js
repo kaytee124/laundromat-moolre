@@ -39,7 +39,10 @@ describe('Security: Mass assignment', () => {
       .send({
         customer_id: ctx.customer.id,
         payment_status: 'paid',
-        order_items_data: [{ service_id: service.id, quantity: 1, unit_price: service.price }],
+        service_ids: [service.id],
+        order_items_data: [
+          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
+        ],
       });
 
     expect(res.status).toBe(201);
@@ -47,20 +50,16 @@ describe('Security: Mass assignment', () => {
     expect(order.payment_status).toBe('paid');
   });
 
-  it('admin cannot create service with negative price', async () => {
+  it('admin cannot create service without name', async () => {
     const res = await request(app)
       .post('/api/services/create/')
       .set(tokens.admin.headers)
       .send({
-        name: `Negative Price ${Date.now()}`,
         description: 'Test',
-        price: -100,
-        unit: 'per item',
         category: 'wash',
-        estimated_days: 1,
       });
 
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   it('superadmin cannot demote client to employee', async () => {
@@ -78,7 +77,10 @@ describe('Security: Mass assignment', () => {
       .set(tokens.employee.headers)
       .send({
         customer_id: ctx.customer.id,
-        order_items_data: [{ service_id: service.id, quantity: 1, unit_price: service.price }],
+        service_ids: [service.id],
+        order_items_data: [
+          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
+        ],
       });
     const orderId = createRes.body.data.id;
 

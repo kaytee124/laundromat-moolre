@@ -230,4 +230,64 @@ describe('Order SMS notifications', () => {
       expect(updated.order_status).toBe('in_progress');
     });
   });
+
+  describe('schedule and pickup SMS', () => {
+    async function clearSmsSpy() {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      sendSmsSpy.mockClear();
+    }
+
+    it('sends earlier schedule SMS when estimated_completion_date moves forward', async () => {
+      await clearSmsSpy();
+      const service = await createService(ctx.admin);
+      const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        estimated_completion_date: '2026-07-25',
+      });
+
+      const res = await request(app)
+        .put(`/api/orders/${smsOrder.id}/update/`)
+        .set(tokens.employee.headers)
+        .send({ estimated_completion_date: '2026-07-20' });
+
+      expect(res.status).toBe(200);
+      await waitForSpyCalls(sendSmsSpy, 1);
+      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
+      expect(messages.some((m) => /moved earlier/i.test(m))).toBe(true);
+    });
+
+    it('sends later schedule SMS when estimated_completion_date is pushed back', async () => {
+      await clearSmsSpy();
+      const service = await createService(ctx.admin);
+      const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        estimated_completion_date: '2026-07-20',
+      });
+
+      const res = await request(app)
+        .put(`/api/orders/${smsOrder.id}/update/`)
+        .set(tokens.employee.headers)
+        .send({ estimated_completion_date: '2026-07-28' });
+
+      expect(res.status).toBe(200);
+      await waitForSpyCalls(sendSmsSpy, 1);
+      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
+      expect(messages.some((m) => /Sorry for the inconvenience/i.test(m))).toBe(true);
+    });
+
+    it('sends pickup SMS when picked_up is set true', async () => {
+      await clearSmsSpy();
+      const service = await createService(ctx.admin);
+      const smsOrder = await createOrder(ctx.employee, ctx.customer, service);
+
+      const res = await request(app)
+        .put(`/api/orders/${smsOrder.id}/update/`)
+        .set(tokens.employee.headers)
+        .send({ picked_up: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.picked_up).toBe(true);
+      await waitForSpyCalls(sendSmsSpy, 1);
+      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
+      expect(messages.some((m) => /picked up/i.test(m))).toBe(true);
+    });
+  });
 });

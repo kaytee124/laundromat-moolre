@@ -20,6 +20,10 @@ Configure these in `.env` (not `.env.example`):
 - `MOOLRE_WEBHOOK_URL` — must point to `POST /api/payments/moolre/webhook/`
 - `MOOLRE_REDIRECT_URL` — frontend “verifying payment” page (polls `GET /api/payments/{externalref}/`)
 - `MOOLRE_WEBHOOK_SECRET` — validated against `data.secret` on webhooks
+- `MOOLRE_API_BASE` — Moolre API host (e.g. `https://api.moolre.com`)
+- `MOOLRE_MERCHANT_EMAIL` — email sent on web payment link create
+- `MOOLRE_PATH_EMBED_LINK`, `MOOLRE_PATH_TRANSACT_STATUS`, `MOOLRE_PATH_TRANSACT_PAYMENT`, `MOOLRE_PATH_SMS_SEND` — API path suffixes
+- `DEFAULT_CUSTOMER_PASSWORD` — default password for staff-created users
 
 Flow: client calls `POST /api/payments/initialize/` → redirect to `authorization_url` → Moolre webhook marks paid (or reconciliation cron after 2 minutes).
 
