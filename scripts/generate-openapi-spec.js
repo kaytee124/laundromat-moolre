@@ -106,6 +106,7 @@ const EXAMPLE_ORDER = {
   payment_status: 'pending',
   total_amount: '89.50',
   amount_paid: '0.00',
+  balance: '89.50',
   discount_amount: '5.00',
   delivery_notes: null,
   special_instructions: null,
@@ -1816,6 +1817,10 @@ const spec = {
           payment_status: { type: 'string' },
           total_amount: { type: 'string' },
           amount_paid: { type: 'string' },
+          balance: {
+            type: 'string',
+            description: 'Remaining balance: total_amount minus amount_paid (non-negative)',
+          },
           discount_amount: { type: 'string' },
           delivery_notes: { type: 'string', nullable: true },
           special_instructions: { type: 'string', nullable: true },

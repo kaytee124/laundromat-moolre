@@ -207,7 +207,7 @@ Example schedule change:
 
 ### List / detail — `GET /api/orders/list/`, `GET /api/orders/:id/`
 
-Expect the same sheet fields on every order in the list and on detail: `service_ids`, `services`, dirty/clean items, `delivery_time`, `picked_up`, `picked_up_at`, `total_amount`, etc.
+Expect the same sheet fields on every order in the list and on detail: `service_ids`, `services`, dirty/clean items, `delivery_time`, `picked_up`, `picked_up_at`, `total_amount`, `amount_paid`, `balance` (`total_amount − amount_paid`), etc.
 
 ---
 

@@ -3644,6 +3644,7 @@
                         "payment_status": "pending",
                         "total_amount": "89.50",
                         "amount_paid": "0.00",
+                        "balance": "89.50",
                         "discount_amount": "5.00",
                         "delivery_notes": null,
                         "special_instructions": null,
@@ -3837,6 +3838,7 @@
                     "payment_status": "pending",
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
+                    "balance": "89.50",
                     "discount_amount": "5.00",
                     "delivery_notes": null,
                     "special_instructions": null,
@@ -4015,6 +4017,7 @@
                     "payment_status": "pending",
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
+                    "balance": "89.50",
                     "discount_amount": "5.00",
                     "delivery_notes": null,
                     "special_instructions": null,
@@ -4211,6 +4214,7 @@
                     "payment_status": "pending",
                     "total_amount": "89.50",
                     "amount_paid": "0.00",
+                    "balance": "89.50",
                     "discount_amount": "5.00",
                     "delivery_notes": null,
                     "special_instructions": null,
@@ -6492,6 +6496,10 @@
           "amount_paid": {
             "type": "string"
           },
+          "balance": {
+            "type": "string",
+            "description": "Remaining balance: total_amount minus amount_paid (non-negative)"
+          },
           "discount_amount": {
             "type": "string"
           },
@@ -6814,6 +6822,7 @@
             "payment_status": "pending",
             "total_amount": "89.50",
             "amount_paid": "0.00",
+            "balance": "89.50",
             "discount_amount": "5.00",
             "delivery_notes": null,
             "special_instructions": null,

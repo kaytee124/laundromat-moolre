@@ -23,6 +23,8 @@ process.env.MOOLRE_PATH_TRANSACT_PAYMENT =
   process.env.MOOLRE_PATH_TRANSACT_PAYMENT || '/open/transact/payment';
 process.env.MOOLRE_PATH_SMS_SEND = process.env.MOOLRE_PATH_SMS_SEND || '/open/sms/send';
 process.env.DEFAULT_CUSTOMER_PASSWORD = process.env.DEFAULT_CUSTOMER_PASSWORD || 'moolre123!';
+process.env.CUSTOMER_APP_URL =
+  process.env.CUSTOMER_APP_URL || 'https://laundry.bafrow-health.org';
 
 
 const { sequelize } = require('../models');

@@ -94,6 +94,8 @@ describe('Orders API', () => {
       expect(res.body.data.services.length).toBe(2);
       // (5*12.5) + (4*8) - 5 = 62.5 + 32 - 5 = 89.5
       expect(parseFloat(res.body.data.total_amount)).toBe(89.5);
+      expect(parseFloat(res.body.data.amount_paid)).toBe(0);
+      expect(parseFloat(res.body.data.balance)).toBe(89.5);
       expect(res.body.data.order_items[0].dirty_quantity).toBeDefined();
       expect(res.body.data.delivery_time).toBeTruthy();
       expect(res.body.data.picked_up).toBe(false);

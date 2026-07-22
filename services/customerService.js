@@ -3,6 +3,8 @@ const { User, Customer, sequelize } = require('../models');
 const { hashPassword } = require('./authService');
 const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
 const { AppError } = require('../utils/errors');
+const { normalizeMsisdn } = require('../utils/phone');
+const { notifyWelcomeSms } = require('./customerNotificationService');
 
 function validateRegistrationFields(data, requirePassword = true) {
   const required = [
@@ -52,7 +54,9 @@ async function checkUniqueness(data, excludeUserId = null) {
 
 async function registerCustomer(data) {
   validateRegistrationFields(data, true);
-  await checkUniqueness(data);
+  const phone_number = normalizeMsisdn(data.phone_number);
+  const whatsapp_number = normalizeMsisdn(data.whatsapp_number);
+  await checkUniqueness({ ...data, phone_number, whatsapp_number });
 
   const password_hash = await hashPassword(data.password);
   const now = new Date();
@@ -77,8 +81,8 @@ async function registerCustomer(data) {
     const customer = await Customer.create(
       {
         user_id: user.id,
-        phone_number: data.phone_number,
-        whatsapp_number: data.whatsapp_number,
+        phone_number,
+        whatsapp_number,
         address: data.address,
         preferred_contact_method: data.preferred_contact_method,
         notes: '',
@@ -94,12 +98,14 @@ async function registerCustomer(data) {
 
 async function createCustomerByStaff(data, creator) {
   validateRegistrationFields(data, false);
-  await checkUniqueness(data);
+  const phone_number = normalizeMsisdn(data.phone_number);
+  const whatsapp_number = normalizeMsisdn(data.whatsapp_number);
+  await checkUniqueness({ ...data, phone_number, whatsapp_number });
 
   const password_hash = await hashPassword(DEFAULT_CUSTOMER_PASSWORD);
   const now = new Date();
 
-  return sequelize.transaction(async (t) => {
+  const result = await sequelize.transaction(async (t) => {
     const user = await User.create(
       {
         username: data.username,
@@ -120,8 +126,8 @@ async function createCustomerByStaff(data, creator) {
     const customer = await Customer.create(
       {
         user_id: user.id,
-        phone_number: data.phone_number,
-        whatsapp_number: data.whatsapp_number,
+        phone_number,
+        whatsapp_number,
         address: data.address,
         preferred_contact_method: data.preferred_contact_method,
         notes: data.notes || '',
@@ -135,6 +141,13 @@ async function createCustomerByStaff(data, creator) {
 
     return { user, customer };
   });
+
+  notifyWelcomeSms({
+    phoneNumber: result.customer.phone_number,
+    username: result.user.username,
+  });
+
+  return result;
 }
 
 module.exports = {

@@ -145,6 +145,10 @@ function formatOrder(order) {
     payment_status: order.payment_status,
     total_amount: String(order.total_amount),
     amount_paid: String(order.amount_paid),
+    balance: Math.max(
+      0,
+      parseFloat(order.total_amount) - parseFloat(order.amount_paid)
+    ).toFixed(2),
     discount_amount: String(order.discount_amount),
     delivery_notes: order.delivery_notes,
     special_instructions: order.special_instructions,

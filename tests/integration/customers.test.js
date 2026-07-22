@@ -2,14 +2,29 @@ const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
 const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
+const moolreService = require('../../services/moolreService');
+const { formatSmsRecipient } = require('../../utils/phone');
+const { DEFAULT_CUSTOMER_PASSWORD, CUSTOMER_APP_URL } = require('../../utils/constants');
 
 describe('Customers API', () => {
   let tokens;
   let ctx;
+  let sendSmsSpy;
 
   beforeAll(async () => {
     ctx = global.testContext;
     tokens = await getTokensForRoles(ctx);
+  });
+
+  beforeEach(() => {
+    sendSmsSpy = jest.spyOn(moolreService, 'sendSms').mockResolvedValue({
+      status: 1,
+      message: 'ok',
+    });
+  });
+
+  afterEach(() => {
+    sendSmsSpy.mockRestore();
   });
 
   describe('POST /api/customers/register/', () => {
@@ -65,21 +80,33 @@ describe('Customers API', () => {
   });
 
   describe('POST /api/customers/create/', () => {
-    it('staff creates customer with default password', async () => {
+    it('staff creates customer with default password and sends welcome SMS', async () => {
+      const username = uniqueUsername('staffcreate');
+      const phone = uniquePhone();
       const res = await request(app)
         .post('/api/customers/create/')
         .set(tokens.employee.headers)
         .send({
-          username: uniqueUsername('staffcreate'),
+          username,
           first_name: 'Staff',
           last_name: 'Created',
-          phone_number: uniquePhone(),
+          phone_number: phone,
           whatsapp_number: uniquePhone(),
           address: 'Staff Created Addr',
           preferred_contact_method: 'whatsapp',
         });
       expect(res.status).toBe(201);
       expect(res.body.default_password).toBeDefined();
+
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(sendSmsSpy).toHaveBeenCalled();
+      const smsArg = sendSmsSpy.mock.calls[0][0];
+      expect(smsArg.recipient).toBe(formatSmsRecipient(phone));
+      expect(smsArg.message).toContain(CUSTOMER_APP_URL);
+      expect(smsArg.message).toContain(username);
+      expect(smsArg.message).toContain(DEFAULT_CUSTOMER_PASSWORD);
     });
 
     it('denies client', async () => {

@@ -24,6 +24,7 @@ Configure these in `.env` (not `.env.example`):
 - `MOOLRE_MERCHANT_EMAIL` — email sent on web payment link create
 - `MOOLRE_PATH_EMBED_LINK`, `MOOLRE_PATH_TRANSACT_STATUS`, `MOOLRE_PATH_TRANSACT_PAYMENT`, `MOOLRE_PATH_SMS_SEND` — API path suffixes
 - `DEFAULT_CUSTOMER_PASSWORD` — default password for staff-created users
+- `CUSTOMER_APP_URL` — customer web app URL included in welcome SMS (e.g. `https://laundry.bafrow-health.org`)
 
 Flow: client calls `POST /api/payments/initialize/` → redirect to `authorization_url` → Moolre webhook marks paid (or reconciliation cron after 2 minutes).
 
@@ -40,8 +41,9 @@ SMS is sent automatically when:
 
 - An order transitions to **in_progress** (staff update or ≥30% payment while order is still `pending`)
 - An order transitions to **completed** (staff update)
+- Staff creates a customer (`POST /api/customers/create/`) — welcome SMS with app link, username, and default password (recipient normalized to `233…`)
 
-Failures are logged only; they do not block order or payment updates.
+Failures are logged only; they do not block order, payment, or customer-create responses.
 
 ## Testing
 
