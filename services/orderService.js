@@ -411,6 +411,16 @@ async function createOrder(data, user) {
     if (!isRetryableDbError(err)) throw err;
   }
 
+  orderNotificationService.notifyOrderCreated(orderId).catch((err) => {
+    console.error(
+      JSON.stringify({
+        event: 'order_created_notification_error',
+        orderId,
+        error: err.message,
+      })
+    );
+  });
+
   const fullOrder = await loadOrderDetail(orderId);
   return formatOrder(fullOrder);
 }

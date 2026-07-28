@@ -39,11 +39,18 @@ Configure in `.env`:
 
 SMS is sent automatically when:
 
+- An order is **created** (staff create) — order-received SMS with order summary (total, balance, services, items) and a portal pay CTA (`CUSTOMER_APP_URL`)
 - An order transitions to **in_progress** (staff update or ≥30% payment while order is still `pending`)
 - An order transitions to **completed** (staff update)
 - Staff creates a customer (`POST /api/customers/create/`) — welcome SMS with app link, username, and default password (recipient normalized to `233…`)
 
 Failures are logged only; they do not block order, payment, or customer-create responses.
+
+To backfill order-received SMS for all orders created on the current Africa/Accra calendar day:
+
+```powershell
+node scripts/sendSmsForTodaysOrders.js
+```
 
 ## Testing
 

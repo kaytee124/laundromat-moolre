@@ -6,6 +6,7 @@ const { getTokensForRoles } = require('../helpers/auth');
 const { createService, createOrder } = require('../helpers/fixtures');
 const { Payment, Order } = require('../../models');
 const { formatSmsRecipient } = require('../../utils/phone');
+const { CUSTOMER_APP_URL } = require('../../utils/constants');
 
 jest.mock('axios');
 
@@ -93,6 +94,44 @@ describe('Order SMS notifications', () => {
 
     it('keeps numbers already in 233 format', () => {
       expect(formatSmsRecipient('233502412618')).toBe('233502412618');
+    });
+  });
+
+  describe('order create', () => {
+    it('sends order-received SMS when staff creates an order', async () => {
+      const service = await createService(ctx.admin);
+      const res = await request(app)
+        .post('/api/orders/create/')
+        .set(tokens.employee.headers)
+        .send({
+          customer_id: ctx.customer.id,
+          service_ids: [service.id],
+          order_items_data: [
+            {
+              item_name: 'TOPS',
+              dirty_quantity: 1,
+              clean_quantity: 0,
+              unit_price: 10,
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      await waitForSpyCalls(sendSmsSpy, 1);
+      expect(sendSmsSpy).toHaveBeenCalledTimes(1);
+      expect(sendSmsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipient: formatSmsRecipient(ctx.customer.phone_number),
+          ref: res.body.data.order_number,
+        })
+      );
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/received/i);
+      expect(sendSmsSpy.mock.calls[0][0].message).toContain(res.body.data.order_number);
+      expect(sendSmsSpy.mock.calls[0][0].message).toContain(CUSTOMER_APP_URL);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/pay/i);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/portal/i);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/Total: GHS/i);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/TOPS/i);
     });
   });
 

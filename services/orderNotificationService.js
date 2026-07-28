@@ -1,6 +1,62 @@
-const { Order, Customer } = require('../models');
+const { Order, Customer, OrderItem, OrderService, Service } = require('../models');
 const moolreService = require('./moolreService');
 const { formatSmsRecipient } = require('../utils/phone');
+const { CUSTOMER_APP_URL } = require('../utils/constants');
+
+const MAX_ITEMS_IN_SMS = 4;
+
+function formatMoney(value) {
+  const n = parseFloat(value);
+  if (Number.isNaN(n)) return '0.00';
+  return n.toFixed(2);
+}
+
+function formatItemLine(item) {
+  const dirty = Number(item.dirty_quantity) || 0;
+  const clean = Number(item.clean_quantity) || 0;
+  const parts = [];
+  if (dirty) parts.push(`${dirty} dirty`);
+  if (clean) parts.push(`${clean} clean`);
+  const counts = parts.length ? parts.join(', ') : '0';
+  return `${item.item_name} (${counts})`;
+}
+
+/**
+ * @param {{
+ *   order_number: string,
+ *   total_amount: string|number,
+ *   amount_paid?: string|number,
+ *   serviceNames?: string[],
+ *   items?: Array<{ item_name: string, dirty_quantity?: number, clean_quantity?: number }>,
+ * }} summary
+ */
+function buildOrderReceivedMessage(summary) {
+  const total = formatMoney(summary.total_amount);
+  const paid = formatMoney(summary.amount_paid ?? 0);
+  const balance = formatMoney(Math.max(0, parseFloat(total) - parseFloat(paid)));
+
+  const lines = [
+    `Bubblebytes: Order ${summary.order_number} received.`,
+    `Total: GHS ${total}. Balance: GHS ${balance}.`,
+  ];
+
+  const serviceNames = (summary.serviceNames || []).filter(Boolean);
+  if (serviceNames.length) {
+    lines.push(`Services: ${serviceNames.join(', ')}.`);
+  }
+
+  const items = summary.items || [];
+  if (items.length) {
+    const shown = items.slice(0, MAX_ITEMS_IN_SMS).map(formatItemLine);
+    const extra = items.length - shown.length;
+    let itemsLine = `Items: ${shown.join('; ')}`;
+    if (extra > 0) itemsLine += `; +${extra} more`;
+    lines.push(`${itemsLine}.`);
+  }
+
+  lines.push(`Log in at ${CUSTOMER_APP_URL} to pay for this order on the portal.`);
+  return lines.join('\n');
+}
 
 function buildInProgressMessage(orderNumber) {
   return `Your order ${orderNumber} is now in progress. Thank you for choosing us.`;
@@ -89,6 +145,41 @@ async function sendCustomerSms(orderId, message) {
   }
 }
 
+async function notifyOrderCreated(orderId) {
+  const order = await Order.findByPk(orderId, {
+    attributes: ['id', 'order_number', 'total_amount', 'amount_paid'],
+    include: [
+      {
+        model: OrderItem,
+        as: 'order_items',
+        attributes: ['item_name', 'dirty_quantity', 'clean_quantity'],
+      },
+      {
+        model: OrderService,
+        as: 'order_services',
+        include: [{ model: Service, as: 'service', attributes: ['id', 'name'] }],
+      },
+    ],
+  });
+  if (!order) {
+    return;
+  }
+
+  const serviceNames = (order.order_services || [])
+    .map((row) => row.service?.name)
+    .filter(Boolean);
+
+  const message = buildOrderReceivedMessage({
+    order_number: order.order_number,
+    total_amount: order.total_amount,
+    amount_paid: order.amount_paid,
+    serviceNames,
+    items: order.order_items || [],
+  });
+
+  await sendCustomerSms(orderId, message);
+}
+
 async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
   if (!newStatus || previousStatus === newStatus) {
     return;
@@ -160,9 +251,11 @@ async function notifyOrderPickedUp(orderId, pickedUpAt) {
 }
 
 module.exports = {
+  notifyOrderCreated,
   notifyOrderStatusChange,
   notifyEstimatedCompletionChange,
   notifyOrderPickedUp,
+  buildOrderReceivedMessage,
   buildInProgressMessage,
   buildCompletedMessage,
   buildScheduleEarlierMessage,
