@@ -62,7 +62,18 @@ async function main() {
     }
 
     try {
-      await notifyOrderCreated(order.id);
+      const ok = await notifyOrderCreated(order.id, {
+        ref: `received-${order.order_number}-${Date.now()}`,
+      });
+      if (!ok) {
+        summary.failed.push({
+          id: order.id,
+          order_number: order.order_number,
+          error: 'sms_send_failed_or_skipped',
+        });
+        console.error(`FAIL order ${order.id} (${order.order_number}): sms_send_failed_or_skipped`);
+        continue;
+      }
       summary.sent.push({ id: order.id, order_number: order.order_number });
       console.log(`SENT order ${order.id} (${order.order_number})`);
     } catch (err) {

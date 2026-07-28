@@ -105,12 +105,12 @@ function buildPickedUpMessage(orderNumber, pickedUpAt = new Date()) {
   );
 }
 
-async function sendCustomerSms(orderId, message) {
+async function sendCustomerSms(orderId, message, options = {}) {
   const order = await Order.findByPk(orderId, {
     attributes: ['id', 'order_number', 'customer_id'],
   });
   if (!order) {
-    return;
+    return false;
   }
 
   const customer = await Customer.findByPk(order.customer_id, {
@@ -124,15 +124,16 @@ async function sendCustomerSms(orderId, message) {
         reason: 'customer_phone_missing',
       })
     );
-    return;
+    return false;
   }
 
   try {
     await moolreService.sendSms({
       recipient: formatSmsRecipient(customer.phone_number),
       message,
-      ref: order.order_number,
+      ref: options.ref || order.order_number,
     });
+    return true;
   } catch (err) {
     console.error(
       JSON.stringify({
@@ -142,10 +143,11 @@ async function sendCustomerSms(orderId, message) {
         code: err.code,
       })
     );
+    return false;
   }
 }
 
-async function notifyOrderCreated(orderId) {
+async function notifyOrderCreated(orderId, options = {}) {
   const order = await Order.findByPk(orderId, {
     attributes: ['id', 'order_number', 'total_amount', 'amount_paid'],
     include: [
@@ -162,7 +164,7 @@ async function notifyOrderCreated(orderId) {
     ],
   });
   if (!order) {
-    return;
+    return false;
   }
 
   const serviceNames = (order.order_services || [])
@@ -177,7 +179,7 @@ async function notifyOrderCreated(orderId) {
     items: order.order_items || [],
   });
 
-  await sendCustomerSms(orderId, message);
+  return sendCustomerSms(orderId, message, options);
 }
 
 async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
