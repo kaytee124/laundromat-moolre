@@ -34,6 +34,7 @@ function formatClientListItem(user, customer) {
     status: getStatus(user),
     phone_number: profile?.phone_number || null,
     whatsapp_number: profile?.whatsapp_number || null,
+    phone_needs_correction: profile?.phone_needs_correction ?? false,
     address: profile?.address || null,
     preferred_contact_method: profile?.preferred_contact_method || null,
     notes: profile?.notes ? profile.notes : 'no note',
@@ -67,6 +68,7 @@ function formatUserProfile(user, customer) {
   if (user.role === 'client' && profile) {
     base.phone_number = profile.phone_number;
     base.whatsapp_number = profile.whatsapp_number;
+    base.phone_needs_correction = profile.phone_needs_correction ?? false;
     base.address = profile.address;
     base.preferred_contact_method = profile.preferred_contact_method;
     base.notes = profile.notes ? profile.notes : 'no note';
@@ -93,6 +95,7 @@ function formatStaffUserDetail(user, customer) {
     is_staff: user.is_staff,
     phone_number: profile?.phone_number || null,
     whatsapp_number: profile?.whatsapp_number || null,
+    phone_needs_correction: profile?.phone_needs_correction ?? false,
     address: profile?.address || null,
     preferred_contact_method: profile?.preferred_contact_method || null,
     notes: profile?.notes ? profile.notes : 'no note',
@@ -117,6 +120,7 @@ function formatSuperadminUserDetail(user, customer) {
     is_superuser: user.is_superuser,
     phone_number: profile?.phone_number || null,
     whatsapp_number: profile?.whatsapp_number || null,
+    phone_needs_correction: profile?.phone_needs_correction ?? false,
     address: profile?.address || null,
     preferred_contact_method: profile?.preferred_contact_method || null,
     notes: profile?.notes || null,

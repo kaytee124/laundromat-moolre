@@ -1,8 +1,10 @@
 const { requireEnv } = require('../config/env');
+const { buildDefaultPassword } = require('./passwords');
 
 module.exports = {
   ORDER_IN_PROGRESS_PAYMENT_RATIO: 0.3,
-  DEFAULT_CUSTOMER_PASSWORD: requireEnv('DEFAULT_CUSTOMER_PASSWORD'),
+  /** @deprecated Use buildDefaultPassword(username). Kept only for re-export convenience. */
+  buildDefaultPassword,
   CUSTOMER_APP_URL: requireEnv('CUSTOMER_APP_URL').replace(/\/$/, ''),
   ROLES: ['superadmin', 'admin', 'employee', 'client'],
   ORDER_STATUSES: ['pending', 'in_progress', 'ready', 'completed', 'cancelled'],

@@ -1,6 +1,6 @@
 const authService = require('../services/authService');
 const userService = require('../services/userService');
-const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
+const { buildDefaultPassword } = require('../utils/passwords');
 const { formatUser } = require('../utils/serializers');
 const { verifyCsrf } = require('../middleware/csrf');
 const { AppError } = require('../utils/errors');
@@ -14,6 +14,26 @@ async function login(req, res) {
   verifyCsrf(req);
   const { username, password } = req.body;
   const { user, tokens, requiresPasswordChange } = await authService.login(username, password);
+
+  setRefreshCookie(res, tokens.refresh);
+
+  const response = {
+    access: tokens.access,
+    user: formatUser(user),
+    requires_password_change: requiresPasswordChange,
+  };
+
+  if (requiresPasswordChange) {
+    response.message = 'Please change your default password';
+  }
+
+  res.json(response);
+}
+
+async function welcomeLogin(req, res) {
+  verifyCsrf(req);
+  const { token } = req.body;
+  const { user, tokens, requiresPasswordChange } = await authService.loginWithWelcomeToken(token);
 
   setRefreshCookie(res, tokens.refresh);
 
@@ -72,7 +92,7 @@ async function createAdmin(req, res) {
   res.status(201).json({
     message: 'Admin created successfully with default password',
     user: formatUser(user),
-    default_password: DEFAULT_CUSTOMER_PASSWORD,
+    default_password: buildDefaultPassword(user.username),
     note: 'Admin must change password on first login',
   });
 }
@@ -100,7 +120,7 @@ async function createEmployee(req, res) {
   res.status(201).json({
     message: 'Employee created successfully with default password',
     user: formatUser(user),
-    default_password: DEFAULT_CUSTOMER_PASSWORD,
+    default_password: buildDefaultPassword(user.username),
     note: 'Employee must change password on first login',
   });
 }
@@ -129,7 +149,7 @@ async function createSuperadmin(req, res) {
   res.status(201).json({
     message: 'Superadmin created successfully with default password',
     user: formatUser(user),
-    default_password: DEFAULT_CUSTOMER_PASSWORD,
+    default_password: buildDefaultPassword(user.username),
     note: 'Superadmin must change password on first login',
   });
 }
@@ -185,6 +205,7 @@ async function getAllSuperadmins(req, res) {
 
 module.exports = {
   login,
+  welcomeLogin,
   logout,
   refreshToken,
   changePassword,

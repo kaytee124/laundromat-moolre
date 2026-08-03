@@ -2,6 +2,8 @@ const { sequelize } = require('../../models');
 
 const TABLES = [
   'ussd_sessions',
+  'welcome_login_tokens',
+  'sms_outbox',
   'order_status_history',
   'refresh_tokens',
   'payments',

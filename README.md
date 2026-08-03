@@ -23,10 +23,14 @@ Configure these in `.env` (not `.env.example`):
 - `MOOLRE_API_BASE` — Moolre API host (e.g. `https://api.moolre.com`)
 - `MOOLRE_MERCHANT_EMAIL` — email sent on web payment link create
 - `MOOLRE_PATH_EMBED_LINK`, `MOOLRE_PATH_TRANSACT_STATUS`, `MOOLRE_PATH_TRANSACT_PAYMENT`, `MOOLRE_PATH_SMS_SEND` — API path suffixes
-- `DEFAULT_CUSTOMER_PASSWORD` — default password for staff-created users
 - `CUSTOMER_APP_URL` — customer web app URL included in welcome SMS (e.g. `https://laundry.bafrow-health.org`)
+- `WELCOME_LOGIN_TOKEN_TTL_HOURS` — portal/welcome magic-link lifetime in hours (default `720` = 30 days)
+
+Staff-created account passwords are **`Kolendo@{username}`** (not a shared env secret). See [docs/frontend-portal-links-and-cash-payments.md](docs/frontend-portal-links-and-cash-payments.md).
 
 Flow: client calls `POST /api/payments/initialize/` → redirect to `authorization_url` → Moolre webhook marks paid (or reconciliation cron after 2 minutes).
+
+Staff cash: `POST /api/payments/cash/` with `order_id`, `amount`, `paid_at` (acceptor = logged-in staff).
 
 Full frontend-to-SMS flow: [docs/payment-and-sms-flow.md](docs/payment-and-sms-flow.md).
 
@@ -39,10 +43,10 @@ Configure in `.env`:
 
 SMS is sent automatically when:
 
-- An order is **created** (staff create) — order-received SMS with order summary (total, balance, services, items) and a portal pay CTA (`CUSTOMER_APP_URL`)
+- An order is **created** (staff create) — order-received SMS with order summary and a portal magic link (`/welcome?token=…&next=/orders/{id}`)
 - An order transitions to **in_progress** (staff update or ≥30% payment while order is still `pending`)
 - An order transitions to **completed** (staff update)
-- Staff creates a customer (`POST /api/customers/create/`) — welcome SMS with app link, username, and default password (recipient normalized to `233…`)
+- Staff creates a customer (`POST /api/customers/create/`) — welcome SMS with reusable portal magic link (see [docs/frontend-welcome-magic-login.md](docs/frontend-welcome-magic-login.md)), plus username and `Kolendo@{username}` password fallback
 
 Failures are logged only; they do not block order, payment, or customer-create responses.
 

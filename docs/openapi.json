@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated\n  - **picked up** — when `picked_up` flips to `true`\n- SMS failures are logged only; they do **not** fail payment or order API responses.\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Account create + SMS**\n- Ghana phone format required on create/update: `0XXXXXXXXX` (10) or `+233XXXXXXXXX` (13).\n- **Admin / employee / superadmin create** — `phone_number` is **compulsory**. Credential SMS (username + `Kolendo@{username}`, keep secret). **No** portal magic link. Response includes `default_password`.\n- **Client (staff) create** — welcome SMS with username + password + magic link. Response does **not** include `default_password`.\n- Magic login (`POST /api/accounts/welcome-login/`) is **client-only**. See `docs/frontend-welcome-magic-login.md`.\n- SMS is written to an **outbox** and sent immediately; transient Moolre failures stay `pending` and are retried every **2 hours**. Permanent invalid-phone errors mark `customers.phone_needs_correction` and are not retried.\n- `POST /api/orders/create/` returns `422 PHONE_NEEDS_CORRECTION` until staff updates the customer phone to a valid Ghana number.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server enqueues Moolre SMS via the outbox after certain order changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated\n  - **picked up** — when `picked_up` flips to `true`\n- SMS failures do **not** fail payment or order API responses (except order create when phone needs correction).\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -205,6 +205,140 @@
                       "error_code": "CSRF_VALIDATION_FAILED",
                       "message": "CSRF token missing or invalid",
                       "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/welcome-login/": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Welcome / portal magic-link login",
+        "description": "**Required auth:** CSRF only — reusable welcome/portal token from SMS magic link (valid until expiry). Rate-limited per IP.\n\nExchanges a welcome/portal token (from SMS `{CUSTOMER_APP_URL}/welcome?token=…`, optional `next` for deep link) for a normal session. Token is reusable until expiry (default 30 days via `WELCOME_LOGIN_TOKEN_TTL_HOURS`). Requires CSRF. Rate-limited per IP. Response matches login, including `requires_password_change` when still on the default password.",
+        "security": [
+          {
+            "csrfHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WelcomeLoginRequest"
+              },
+              "example": {
+                "token": "base64url-welcome-token-from-sms"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Welcome login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                },
+                "example": {
+                  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
+                  "user": {
+                    "id": 1,
+                    "username": "client1",
+                    "first_name": "Jane",
+                    "last_name": "Doe",
+                    "role": "client",
+                    "is_active": true,
+                    "is_staff": false,
+                    "is_superuser": false,
+                    "last_login": "2026-07-20T12:00:00.000Z",
+                    "date_joined": "2026-01-01T10:00:00.000Z",
+                    "updated_at": "2026-07-20T12:00:00.000Z",
+                    "updated_by": null
+                  },
+                  "requires_password_change": true,
+                  "message": "Please change your default password"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired welcome link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "RATE_LIMIT_EXCEEDED": {
+                    "value": {
+                      "error_code": "RATE_LIMIT_EXCEEDED",
+                      "message": "Too many requests. Please try again later.",
+                      "status_code": 429
                     }
                   }
                 }
@@ -817,6 +951,7 @@
           "Accounts"
         ],
         "summary": "Create admin (superadmin only)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin.\n\nCreates an admin with temporary password `Kolendo@{username}`. `phone_number` is **compulsory**. Sends credential SMS (username + password, keep secret) — no portal magic link. Response includes `default_password` for the creator.",
         "security": [
           {
             "bearerAuth": []
@@ -832,7 +967,8 @@
               "example": {
                 "username": "newadmin",
                 "first_name": "New",
-                "last_name": "Admin"
+                "last_name": "Admin",
+                "phone_number": "0502412618"
               }
             }
           }
@@ -861,8 +997,34 @@
                     "updated_at": "2026-07-20T12:00:00.000Z",
                     "updated_by": null
                   },
-                  "default_password": "TempPass123!",
-                  "note": "User should change password on first login"
+                  "default_password": "Kolendo@newadmin",
+                  "note": "Credentials were also sent by SMS. User should change password on first login"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -938,8 +1100,7 @@
               }
             }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: superadmin."
+        }
       }
     },
     "/api/accounts/admin/update/": {
@@ -1187,6 +1348,7 @@
           "Accounts"
         ],
         "summary": "Create employee (admin or superadmin)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin.\n\nCreates an employee with temporary password `Kolendo@{username}`. `phone_number` is **compulsory**. Sends credential SMS (username + password, keep secret) — no portal magic link. Response includes `default_password` for the creator.",
         "security": [
           {
             "bearerAuth": []
@@ -1202,7 +1364,8 @@
               "example": {
                 "username": "newemployee",
                 "first_name": "New",
-                "last_name": "Employee"
+                "last_name": "Employee",
+                "phone_number": "0502412619"
               }
             }
           }
@@ -1231,8 +1394,34 @@
                     "updated_at": "2026-07-20T12:00:00.000Z",
                     "updated_by": null
                   },
-                  "default_password": "TempPass123!",
-                  "note": "User should change password on first login"
+                  "default_password": "Kolendo@newemployee",
+                  "note": "Credentials were also sent by SMS. User should change password on first login"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -1308,8 +1497,7 @@
               }
             }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
+        }
       }
     },
     "/api/accounts/employee/update/": {
@@ -1688,7 +1876,7 @@
           "Accounts"
         ],
         "summary": "Create superadmin",
-        "description": "**Required auth:** None for first bootstrap (no superadmin exists). After bootstrap: superadmin access JWT via `Authorization: Bearer <access>`.\n\nPublic when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.",
+        "description": "**Required auth:** None for first bootstrap (no superadmin exists). After bootstrap: superadmin access JWT via `Authorization: Bearer <access>`.\n\nPublic when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token. `phone_number` is **compulsory**. Temporary password `Kolendo@{username}` is returned and sent by SMS (username + password, keep secret; no portal magic link).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1698,7 +1886,8 @@
               },
               "example": {
                 "username": "newsuper",
-                "first_name": "New"
+                "first_name": "New",
+                "phone_number": "0502412620"
               }
             }
           }
@@ -1727,8 +1916,34 @@
                     "updated_at": "2026-07-20T12:00:00.000Z",
                     "updated_by": null
                   },
-                  "default_password": "TempPass123!",
-                  "note": "User should change password on first login"
+                  "default_password": "Kolendo@newsuperadmin",
+                  "note": "Credentials were also sent by SMS. User should change password on first login"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
                 }
               }
             }
@@ -3010,6 +3225,7 @@
           "Customers"
         ],
         "summary": "Staff creates customer",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nCreates a client with temporary password `Kolendo@{username}`. Sends welcome SMS (username + password + portal magic link). `default_password` is **not** returned — credentials are SMS-only.",
         "security": [
           {
             "bearerAuth": []
@@ -3043,7 +3259,7 @@
                   "$ref": "#/components/schemas/CustomerStaffCreateResponse"
                 },
                 "example": {
-                  "message": "Customer created successfully with default password",
+                  "message": "Customer created successfully. Login credentials were sent by SMS.",
                   "user": {
                     "id": 1,
                     "username": "client1",
@@ -3061,8 +3277,7 @@
                   "customer": {
                     "id": 1
                   },
-                  "default_password": "TempPass123!",
-                  "note": "Customer should change password on first login"
+                  "note": "Customer must change password on first login. Default password is not returned in this response."
                 }
               }
             }
@@ -3138,8 +3353,7 @@
               }
             }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
+        }
       }
     },
     "/api/services/list/": {
@@ -3773,6 +3987,7 @@
           "Orders"
         ],
         "summary": "Create order (staff)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nCreates an order for a customer. Rejects with `422 PHONE_NEEDS_CORRECTION` if the customer phone was marked invalid by SMS and has not been corrected yet.",
         "security": [
           {
             "bearerAuth": []
@@ -3973,9 +4188,27 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Customer phone needs correction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PHONE_NEEDS_CORRECTION": {
+                    "value": {
+                      "error_code": "PHONE_NEEDS_CORRECTION",
+                      "message": "Customer phone number must be corrected before creating orders",
+                      "status_code": 422
+                    }
+                  }
+                }
+              }
+            }
           }
-        },
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
+        }
       }
     },
     "/api/orders/{id}/": {
@@ -4516,6 +4749,151 @@
                       "error_code": "MOOLRE_ERROR",
                       "message": "Failed to initialize payment",
                       "status_code": 500
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/cash/": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Record cash payment (staff)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff records a cash payment against an order. Creates a paid Payment row (`payment_method: cash`) with amount, `paid_at`, and `created_by` = accepting staff. Syncs order `amount_paid` / `payment_status` / optional auto-`in_progress` SMS.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashPaymentRequest"
+              },
+              "example": {
+                "order_id": 1,
+                "amount": 50,
+                "paid_at": "2026-08-03T14:30:00.000Z"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cash payment recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPaymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Validation failed",
+                      "status_code": 400
+                    }
+                  },
+                  "MISSING_FIELDS": {
+                    "value": {
+                      "error_code": "MISSING_FIELDS",
+                      "message": "Username and password are required",
+                      "status_code": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  },
+                  "CSRF_VALIDATION_FAILED": {
+                    "value": {
+                      "error_code": "CSRF_VALIDATION_FAILED",
+                      "message": "CSRF token missing or invalid",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
                     }
                   }
                 }
@@ -5307,6 +5685,7 @@
               "DATE_RANGE_TOO_LARGE",
               "USERNAME_EXISTS",
               "PHONE_EXISTS",
+              "PHONE_NEEDS_CORRECTION",
               "INVALID_PASSWORD",
               "INVALID_DATE_FORMAT",
               "MOOLRE_ERROR",
@@ -5436,6 +5815,18 @@
           }
         }
       },
+      "WelcomeLoginRequest": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "One-time welcome token from SMS magic link query param"
+          }
+        }
+      },
       "LoginResponse": {
         "type": "object",
         "properties": {
@@ -5554,6 +5945,9 @@
             "type": "string",
             "nullable": true
           },
+          "phone_needs_correction": {
+            "type": "boolean"
+          },
           "address": {
             "type": "string",
             "nullable": true
@@ -5659,10 +6053,16 @@
             "type": "string"
           },
           "phone_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "whatsapp_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "address": {
             "type": "string"
@@ -5678,9 +6078,11 @@
       },
       "StaffCreateRequest": {
         "type": "object",
+        "description": "Create admin, employee, or superadmin. `phone_number` is compulsory — used for credential SMS (no magic link).",
         "required": [
           "username",
-          "first_name"
+          "first_name",
+          "phone_number"
         ],
         "properties": {
           "username": {
@@ -5691,6 +6093,12 @@
           },
           "last_name": {
             "type": "string"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Compulsory for admin, employee, and superadmin. Ghana format. Credentials SMS is sent here (username + password). No portal magic link.",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           }
         }
       },
@@ -5704,7 +6112,9 @@
             "$ref": "#/components/schemas/User"
           },
           "default_password": {
-            "type": "string"
+            "type": "string",
+            "description": "Temporary password Kolendo@{username}. Also sent by SMS. Magic links are client-only.",
+            "example": "Kolendo@newemployee"
           },
           "note": {
             "type": "string"
@@ -5726,8 +6136,8 @@
             "updated_at": "2026-07-20T12:00:00.000Z",
             "updated_by": null
           },
-          "default_password": "TempPass123!",
-          "note": "User should change password on first login"
+          "default_password": "Kolendo@newadmin",
+          "note": "Credentials were also sent by SMS. User should change password on first login"
         }
       },
       "StaffSelfUpdateRequest": {
@@ -5754,10 +6164,16 @@
             "type": "string"
           },
           "phone_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "whatsapp_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "address": {
             "type": "string"
@@ -5827,6 +6243,10 @@
           "whatsapp_number": {
             "type": "string",
             "nullable": true
+          },
+          "phone_needs_correction": {
+            "type": "boolean",
+            "description": "When true, staff cannot create orders for this customer until phone is updated"
           },
           "address": {
             "type": "string",
@@ -5934,6 +6354,9 @@
               "whatsapp_number": {
                 "type": "string",
                 "nullable": true
+              },
+              "phone_needs_correction": {
+                "type": "boolean"
               },
               "address": {
                 "type": "string",
@@ -6083,10 +6506,16 @@
             "type": "string"
           },
           "phone_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "whatsapp_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "address": {
             "type": "string"
@@ -6160,10 +6589,16 @@
             "type": "string"
           },
           "phone_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "whatsapp_number": {
-            "type": "string"
+            "type": "string",
+            "description": "Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).",
+            "example": "0502412618",
+            "pattern": "^(0\\d{9}|\\+233\\d{9})$"
           },
           "address": {
             "type": "string"
@@ -6194,15 +6629,13 @@
               }
             }
           },
-          "default_password": {
-            "type": "string"
-          },
           "note": {
-            "type": "string"
+            "type": "string",
+            "description": "Credentials (username + Kolendo@{username} and magic link) are sent by SMS only — not returned in this response"
           }
         },
         "example": {
-          "message": "Customer created successfully with default password",
+          "message": "Customer created successfully. Login credentials were sent by SMS.",
           "user": {
             "id": 1,
             "username": "client1",
@@ -6220,8 +6653,7 @@
           "customer": {
             "id": 1
           },
-          "default_password": "TempPass123!",
-          "note": "Customer should change password on first login"
+          "note": "Customer must change password on first login. Default password is not returned in this response."
         }
       },
       "Service": {
@@ -6897,6 +7329,108 @@
           },
           "amount": {
             "type": "number"
+          }
+        }
+      },
+      "CashPaymentRequest": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "amount",
+          "paid_at"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Cash amount received (must not exceed remaining balance)"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the cash was received (ISO date or datetime)"
+          }
+        }
+      },
+      "CashPaymentResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "payment": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "order_id": {
+                    "type": "integer"
+                  },
+                  "externalref": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "example": "paid"
+                  },
+                  "payment_method": {
+                    "type": "string",
+                    "example": "cash"
+                  },
+                  "paid_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "created_by": {
+                    "type": "integer",
+                    "description": "Staff user who accepted the cash"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "example": "GHS"
+                  }
+                }
+              },
+              "order": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "order_number": {
+                    "type": "string"
+                  },
+                  "total_amount": {
+                    "type": "string"
+                  },
+                  "amount_paid": {
+                    "type": "string"
+                  },
+                  "balance": {
+                    "type": "string"
+                  },
+                  "payment_status": {
+                    "type": "string"
+                  },
+                  "order_status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         }
       },

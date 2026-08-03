@@ -1,7 +1,9 @@
 const { Order, Customer, OrderItem, OrderService, Service } = require('../models');
-const moolreService = require('./moolreService');
 const { formatSmsRecipient } = require('../utils/phone');
 const { CUSTOMER_APP_URL } = require('../utils/constants');
+const { createWelcomeLoginToken } = require('./welcomeLoginTokenService');
+const { buildWelcomeMagicLink } = require('./customerNotificationService');
+const { enqueueSms } = require('./smsOutboxService');
 
 const MAX_ITEMS_IN_SMS = 4;
 
@@ -24,10 +26,12 @@ function formatItemLine(item) {
 /**
  * @param {{
  *   order_number: string,
+ *   orderId?: number|string,
  *   total_amount: string|number,
  *   amount_paid?: string|number,
  *   serviceNames?: string[],
  *   items?: Array<{ item_name: string, dirty_quantity?: number, clean_quantity?: number }>,
+ *   portalLink?: string,
  * }} summary
  */
 function buildOrderReceivedMessage(summary) {
@@ -54,7 +58,11 @@ function buildOrderReceivedMessage(summary) {
     lines.push(`${itemsLine}.`);
   }
 
-  lines.push(`Log in at ${CUSTOMER_APP_URL} to pay for this order on the portal.`);
+  if (summary.portalLink) {
+    lines.push(`Tap to open this order and pay on the portal: ${summary.portalLink}`);
+  } else {
+    lines.push(`Log in at ${CUSTOMER_APP_URL} to pay for this order on the portal.`);
+  }
   return lines.join('\n');
 }
 
@@ -128,12 +136,15 @@ async function sendCustomerSms(orderId, message, options = {}) {
   }
 
   try {
-    await moolreService.sendSms({
+    const result = await enqueueSms({
       recipient: formatSmsRecipient(customer.phone_number),
       message,
       ref: options.ref || order.order_number,
+      purpose: options.purpose || 'order_notification',
+      relatedType: 'customer',
+      relatedId: customer.id,
     });
-    return true;
+    return Boolean(result?.ok);
   } catch (err) {
     console.error(
       JSON.stringify({
@@ -149,7 +160,7 @@ async function sendCustomerSms(orderId, message, options = {}) {
 
 async function notifyOrderCreated(orderId, options = {}) {
   const order = await Order.findByPk(orderId, {
-    attributes: ['id', 'order_number', 'total_amount', 'amount_paid'],
+    attributes: ['id', 'order_number', 'total_amount', 'amount_paid', 'customer_id'],
     include: [
       {
         model: OrderItem,
@@ -161,6 +172,11 @@ async function notifyOrderCreated(orderId, options = {}) {
         as: 'order_services',
         include: [{ model: Service, as: 'service', attributes: ['id', 'name'] }],
       },
+      {
+        model: Customer,
+        as: 'customer',
+        attributes: ['id', 'user_id', 'phone_number'],
+      },
     ],
   });
   if (!order) {
@@ -171,15 +187,33 @@ async function notifyOrderCreated(orderId, options = {}) {
     .map((row) => row.service?.name)
     .filter(Boolean);
 
+  let portalLink = null;
+  if (order.customer?.user_id) {
+    try {
+      const welcomeToken = await createWelcomeLoginToken(order.customer.user_id);
+      portalLink = buildWelcomeMagicLink(welcomeToken, `/orders/${order.id}`);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: 'order_portal_token_failed',
+          orderId,
+          error: err.message,
+        })
+      );
+    }
+  }
+
   const message = buildOrderReceivedMessage({
     order_number: order.order_number,
+    orderId: order.id,
     total_amount: order.total_amount,
     amount_paid: order.amount_paid,
     serviceNames,
     items: order.order_items || [],
+    portalLink,
   });
 
-  return sendCustomerSms(orderId, message, options);
+  return sendCustomerSms(orderId, message, { ...options, purpose: 'order_created' });
 }
 
 async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
@@ -204,7 +238,9 @@ async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
     ? buildInProgressMessage(order.order_number)
     : buildCompletedMessage(order.order_number);
 
-  await sendCustomerSms(orderId, message);
+  await sendCustomerSms(orderId, message, {
+    purpose: isInProgress ? 'order_in_progress' : 'order_completed',
+  });
 }
 
 function toDateOnlyString(value) {
@@ -238,7 +274,7 @@ async function notifyEstimatedCompletionChange(orderId, previousDate, newDate) {
       ? buildScheduleEarlierMessage(order.order_number, next)
       : buildScheduleLaterMessage(order.order_number, next);
 
-  await sendCustomerSms(orderId, message);
+  await sendCustomerSms(orderId, message, { purpose: 'order_schedule_change' });
 }
 
 async function notifyOrderPickedUp(orderId, pickedUpAt) {
@@ -249,7 +285,9 @@ async function notifyOrderPickedUp(orderId, pickedUpAt) {
     return;
   }
 
-  await sendCustomerSms(orderId, buildPickedUpMessage(order.order_number, pickedUpAt || new Date()));
+  await sendCustomerSms(orderId, buildPickedUpMessage(order.order_number, pickedUpAt || new Date()), {
+    purpose: 'order_picked_up',
+  });
 }
 
 module.exports = {

@@ -14,9 +14,9 @@ describe('Security: RBAC', () => {
 
   const cases = [
     { name: 'client cannot list admins', method: 'get', path: '/api/accounts/admins/', token: 'client', expect: 403 },
-    { name: 'client cannot create employee', method: 'post', path: '/api/accounts/employee/create/', token: 'client', body: { username: 'x', first_name: 'X' }, expect: 403 },
-    { name: 'employee cannot create admin', method: 'post', path: '/api/accounts/admin/create/', token: 'employee', body: { username: uniqueUsername('rbac'), first_name: 'Rbac' }, expect: 403 },
-    { name: 'admin cannot create superadmin', method: 'post', path: '/api/accounts/superadmin/create/', token: 'admin', body: { username: uniqueUsername('rbac2'), first_name: 'Rbac' }, expect: 403 },
+    { name: 'client cannot create employee', method: 'post', path: '/api/accounts/employee/create/', token: 'client', body: { username: 'x', first_name: 'X', phone_number: '0200000099' }, expect: 403 },
+    { name: 'employee cannot create admin', method: 'post', path: '/api/accounts/admin/create/', token: 'employee', body: { username: uniqueUsername('rbac'), first_name: 'Rbac', phone_number: '0200000098' }, expect: 403 },
+    { name: 'admin cannot create superadmin', method: 'post', path: '/api/accounts/superadmin/create/', token: 'admin', body: { username: uniqueUsername('rbac2'), first_name: 'Rbac', phone_number: '0200000097' }, expect: 403 },
     { name: 'employee cannot view revenue report', method: 'get', path: '/api/dashboard/revenue-report/?start_date=2025-01-01&end_date=2025-12-31', token: 'employee', expect: 403 },
     { name: 'client cannot create service', method: 'post', path: '/api/services/create/', token: 'client', body: { name: 'X', category: 'wash' }, expect: 403 },
     { name: 'client cannot access superadmin user', method: 'get', path: () => `/api/accounts/superadmin/user/${ctx.admin.id}/`, token: 'client', expect: 403 },

@@ -4,7 +4,9 @@ const { getTokensForRoles } = require('../helpers/auth');
 const { uniqueUsername, uniquePhone } = require('../helpers/fixtures');
 const moolreService = require('../../services/moolreService');
 const { formatSmsRecipient } = require('../../utils/phone');
-const { DEFAULT_CUSTOMER_PASSWORD, CUSTOMER_APP_URL } = require('../../utils/constants');
+const { CUSTOMER_APP_URL } = require('../../utils/constants');
+const { buildDefaultPassword } = require('../../utils/passwords');
+const { waitForSms } = require('../helpers/wait');
 
 describe('Customers API', () => {
   let tokens;
@@ -96,17 +98,17 @@ describe('Customers API', () => {
           preferred_contact_method: 'whatsapp',
         });
       expect(res.status).toBe(201);
-      expect(res.body.default_password).toBeDefined();
+      expect(res.body.default_password).toBeUndefined();
 
-      await new Promise((resolve) => setImmediate(resolve));
-      await new Promise((resolve) => setImmediate(resolve));
+      await waitForSms(sendSmsSpy);
 
       expect(sendSmsSpy).toHaveBeenCalled();
       const smsArg = sendSmsSpy.mock.calls[0][0];
       expect(smsArg.recipient).toBe(formatSmsRecipient(phone));
       expect(smsArg.message).toContain(CUSTOMER_APP_URL);
+      expect(smsArg.message).toContain('/welcome?token=');
       expect(smsArg.message).toContain(username);
-      expect(smsArg.message).toContain(DEFAULT_CUSTOMER_PASSWORD);
+      expect(smsArg.message).toContain(buildDefaultPassword(username));
     });
 
     it('denies client', async () => {

@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
       password_hash: { type: DataTypes.STRING(128), allowNull: false },
       first_name: { type: DataTypes.STRING(150), allowNull: false, defaultValue: '' },
       last_name: { type: DataTypes.STRING(150), allowNull: false, defaultValue: '' },
+      phone_number: { type: DataTypes.STRING(20), allowNull: true },
       role: {
         type: DataTypes.STRING(20),
         allowNull: false,

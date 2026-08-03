@@ -31,14 +31,15 @@ describe('Security: Input validation', () => {
   });
 
   it('blocks default password on change-password', async () => {
-    const { DEFAULT_CUSTOMER_PASSWORD } = require('../../utils/constants');
+    const { buildDefaultPassword } = require('../../utils/passwords');
+    const defaultPassword = buildDefaultPassword(global.testContext.client.username);
     const res = await request(app)
       .post('/api/accounts/change-password/')
       .set(tokens.client.headers)
       .send({
         old_password: global.testContext.passwords.client,
-        new_password: DEFAULT_CUSTOMER_PASSWORD,
-        confirm_password: DEFAULT_CUSTOMER_PASSWORD,
+        new_password: defaultPassword,
+        confirm_password: defaultPassword,
       });
     expect(res.status).toBe(422);
   });

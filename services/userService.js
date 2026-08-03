@@ -4,8 +4,11 @@ const {
   Customer,
 } = require('../models');
 const { hashPassword } = require('./authService');
-const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
+const { buildDefaultPassword } = require('../utils/passwords');
 const { AppError } = require('../utils/errors');
+const { normalizeValidGhanaPhone } = require('../utils/phone');
+const { notifyStaffCredentialsSms } = require('./staffNotificationService');
+const { checkUniqueness } = require('./customerService');
 const {
   formatUser,
   formatUserListItem,
@@ -16,17 +19,27 @@ const {
 } = require('../utils/serializers');
 const { parsePagination, paginatedResponse } = require('../utils/pagination');
 
-async function createStaffUser({ username, first_name, last_name, role, flags }, updatedBy) {
+async function createStaffUser({ username, first_name, last_name, phone_number, role, flags }, updatedBy) {
+  if (!username) {
+    throw new AppError('MISSING_FIELDS', 'Username is required', 400);
+  }
+  const phoneInput = typeof phone_number === 'string' ? phone_number.trim() : phone_number;
+  if (!phoneInput) {
+    throw new AppError('MISSING_FIELDS', 'phone_number is required', 400);
+  }
+
   const existing = await User.findOne({ where: { username } });
   if (existing) {
     throw new AppError('USERNAME_EXISTS', 'Username already taken', 409);
   }
 
-  const password_hash = await hashPassword(DEFAULT_CUSTOMER_PASSWORD);
+  const normalizedPhone = normalizeValidGhanaPhone(phoneInput, 'phone_number');
+  const password_hash = await hashPassword(buildDefaultPassword(username));
   const user = await User.create({
     username,
     first_name: first_name || '',
     last_name: last_name || '',
+    phone_number: normalizedPhone,
     password_hash,
     role,
     is_active: flags.is_active ?? true,
@@ -35,6 +48,13 @@ async function createStaffUser({ username, first_name, last_name, role, flags },
     updated_by: updatedBy?.id || null,
     date_joined: new Date(),
     updated_at: new Date(),
+  });
+
+  notifyStaffCredentialsSms({
+    phoneNumber: normalizedPhone,
+    username: user.username,
+    role: user.role,
+    userId: user.id,
   });
 
   return user;
@@ -127,34 +147,91 @@ async function updateSelfProfile(user, data, allowedFields) {
   return formatUser(dbUser);
 }
 
+async function applyCustomerContactUpdates(customer, data, updaterId, { createIfMissing = false, createDefaults = {} } = {}) {
+  const customerFields = ['phone_number', 'whatsapp_number', 'address', 'preferred_contact_method', 'notes'];
+  const hasCustomerData = customerFields.some((f) => data[f] !== undefined);
+
+  if (!customer && !hasCustomerData) {
+    return null;
+  }
+
+  if (!customer && createIfMissing) {
+    const phone_number = data.phone_number
+      ? normalizeValidGhanaPhone(data.phone_number, 'phone_number')
+      : createDefaults.phone_number || '';
+    const whatsapp_number = data.whatsapp_number
+      ? normalizeValidGhanaPhone(data.whatsapp_number, 'whatsapp_number')
+      : createDefaults.whatsapp_number || '';
+    if (data.phone_number || data.whatsapp_number) {
+      await checkUniqueness({ phone_number, whatsapp_number });
+    }
+    return Customer.create({
+      user_id: createDefaults.user_id,
+      phone_number,
+      whatsapp_number,
+      phone_needs_correction: false,
+      address: data.address || createDefaults.address || '',
+      preferred_contact_method: data.preferred_contact_method || createDefaults.preferred_contact_method || 'phone',
+      notes: data.notes || '',
+      created_by: updaterId,
+      updated_by: updaterId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+  }
+
+  if (!customer) return null;
+
+  const next = { ...customer.get() };
+  if (data.phone_number !== undefined) {
+    next.phone_number = normalizeValidGhanaPhone(data.phone_number, 'phone_number');
+  }
+  if (data.whatsapp_number !== undefined) {
+    next.whatsapp_number = normalizeValidGhanaPhone(data.whatsapp_number, 'whatsapp_number');
+  }
+  for (const field of ['address', 'preferred_contact_method', 'notes']) {
+    if (data[field] !== undefined) next[field] = data[field];
+  }
+
+  if (data.phone_number !== undefined || data.whatsapp_number !== undefined) {
+    await checkUniqueness(
+      {
+        phone_number: data.phone_number !== undefined ? next.phone_number : undefined,
+        whatsapp_number: data.whatsapp_number !== undefined ? next.whatsapp_number : undefined,
+      },
+      customer.id
+    );
+  }
+
+  if (data.phone_number !== undefined) {
+    customer.phone_number = next.phone_number;
+    customer.phone_needs_correction = false;
+  }
+  if (data.whatsapp_number !== undefined) {
+    customer.whatsapp_number = next.whatsapp_number;
+  }
+  for (const field of ['address', 'preferred_contact_method', 'notes']) {
+    if (data[field] !== undefined) customer[field] = data[field];
+  }
+  customer.updated_by = updaterId;
+  customer.updated_at = new Date();
+  await customer.save();
+  return customer;
+}
+
 async function updateClientSelf(user, data) {
   const userFields = ['username', 'first_name', 'last_name'];
   await updateSelfProfile(user, data, userFields);
 
   const customerFields = ['phone_number', 'whatsapp_number', 'address', 'preferred_contact_method'];
-  const customerData = {};
-  for (const field of customerFields) {
-    if (data[field] !== undefined) customerData[field] = data[field];
-  }
+  const hasCustomerData = customerFields.some((f) => data[f] !== undefined);
 
-  if (Object.keys(customerData).length > 0) {
+  if (hasCustomerData) {
     let customer = await Customer.findOne({ where: { user_id: user.id } });
-    if (!customer) {
-      customer = await Customer.create({
-        user_id: user.id,
-        phone_number: customerData.phone_number || '',
-        whatsapp_number: customerData.whatsapp_number || '',
-        address: customerData.address || '',
-        preferred_contact_method: customerData.preferred_contact_method || 'phone',
-        notes: '',
-        updated_by: user.id,
-      });
-    } else {
-      Object.assign(customer, customerData);
-      customer.updated_by = user.id;
-      customer.updated_at = new Date();
-      await customer.save();
-    }
+    await applyCustomerContactUpdates(customer, data, user.id, {
+      createIfMissing: true,
+      createDefaults: { user_id: user.id },
+    });
   }
 
   return formatUser(await User.findByPk(user.id));
@@ -191,13 +268,7 @@ async function updateClientByStaff(clientId, data, staff) {
 
   const customer = await Customer.findOne({ where: { user_id: client.id } });
   if (customer) {
-    const customerFields = ['phone_number', 'whatsapp_number', 'address', 'preferred_contact_method', 'notes'];
-    for (const field of customerFields) {
-      if (data[field] !== undefined) customer[field] = data[field];
-    }
-    customer.updated_by = staff.id;
-    customer.updated_at = new Date();
-    await customer.save();
+    await applyCustomerContactUpdates(customer, data, staff.id);
   }
 
   const updated = await User.findByPk(client.id, {
@@ -270,24 +341,11 @@ async function superadminUpdateUser(targetUser, data, superadmin, expectedRole) 
     const customerFields = ['phone_number', 'whatsapp_number', 'address', 'preferred_contact_method', 'notes'];
     const hasCustomerData = customerFields.some((f) => data[f] !== undefined);
 
-    if (!customer && hasCustomerData) {
-      customer = await Customer.create({
-        user_id: user.id,
-        phone_number: data.phone_number || '',
-        whatsapp_number: data.whatsapp_number || '',
-        address: data.address || '',
-        preferred_contact_method: data.preferred_contact_method || 'phone',
-        notes: data.notes || '',
-        created_by: superadmin.id,
-        updated_by: superadmin.id,
+    if (hasCustomerData) {
+      await applyCustomerContactUpdates(customer, data, superadmin.id, {
+        createIfMissing: true,
+        createDefaults: { user_id: user.id },
       });
-    } else if (customer) {
-      for (const field of customerFields) {
-        if (data[field] !== undefined) customer[field] = data[field];
-      }
-      customer.updated_by = superadmin.id;
-      customer.updated_at = new Date();
-      await customer.save();
     }
   }
 

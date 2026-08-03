@@ -1,10 +1,11 @@
 const { Op } = require('sequelize');
 const { User, Customer, sequelize } = require('../models');
 const { hashPassword } = require('./authService');
-const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
+const { buildDefaultPassword } = require('../utils/passwords');
 const { AppError } = require('../utils/errors');
-const { normalizeMsisdn } = require('../utils/phone');
+const { normalizeValidGhanaPhone } = require('../utils/phone');
 const { notifyWelcomeSms } = require('./customerNotificationService');
+const { createWelcomeLoginToken } = require('./welcomeLoginTokenService');
 
 function validateRegistrationFields(data, requirePassword = true) {
   const required = [
@@ -28,12 +29,12 @@ function validateRegistrationFields(data, requirePassword = true) {
   }
 }
 
-async function checkUniqueness(data, excludeUserId = null) {
+async function checkUniqueness(data, excludeCustomerId = null) {
   if (data.username) {
     const userExists = await User.findOne({
       where: {
         username: data.username,
-        ...(excludeUserId ? { id: { [Op.ne]: excludeUserId } } : {}),
+        ...(data.excludeUserId ? { id: { [Op.ne]: data.excludeUserId } } : {}),
       },
     });
     if (userExists) {
@@ -42,20 +43,30 @@ async function checkUniqueness(data, excludeUserId = null) {
   }
 
   if (data.phone_number) {
-    const phoneExists = await Customer.findOne({ where: { phone_number: data.phone_number } });
+    const phoneExists = await Customer.findOne({
+      where: {
+        phone_number: data.phone_number,
+        ...(excludeCustomerId ? { id: { [Op.ne]: excludeCustomerId } } : {}),
+      },
+    });
     if (phoneExists) throw new AppError('PHONE_EXISTS', 'Phone number already registered', 409);
   }
 
   if (data.whatsapp_number) {
-    const waExists = await Customer.findOne({ where: { whatsapp_number: data.whatsapp_number } });
+    const waExists = await Customer.findOne({
+      where: {
+        whatsapp_number: data.whatsapp_number,
+        ...(excludeCustomerId ? { id: { [Op.ne]: excludeCustomerId } } : {}),
+      },
+    });
     if (waExists) throw new AppError('WHATSAPP_EXISTS', 'WhatsApp number already registered', 409);
   }
 }
 
 async function registerCustomer(data) {
   validateRegistrationFields(data, true);
-  const phone_number = normalizeMsisdn(data.phone_number);
-  const whatsapp_number = normalizeMsisdn(data.whatsapp_number);
+  const phone_number = normalizeValidGhanaPhone(data.phone_number, 'phone_number');
+  const whatsapp_number = normalizeValidGhanaPhone(data.whatsapp_number, 'whatsapp_number');
   await checkUniqueness({ ...data, phone_number, whatsapp_number });
 
   const password_hash = await hashPassword(data.password);
@@ -83,6 +94,7 @@ async function registerCustomer(data) {
         user_id: user.id,
         phone_number,
         whatsapp_number,
+        phone_needs_correction: false,
         address: data.address,
         preferred_contact_method: data.preferred_contact_method,
         notes: '',
@@ -98,11 +110,11 @@ async function registerCustomer(data) {
 
 async function createCustomerByStaff(data, creator) {
   validateRegistrationFields(data, false);
-  const phone_number = normalizeMsisdn(data.phone_number);
-  const whatsapp_number = normalizeMsisdn(data.whatsapp_number);
+  const phone_number = normalizeValidGhanaPhone(data.phone_number, 'phone_number');
+  const whatsapp_number = normalizeValidGhanaPhone(data.whatsapp_number, 'whatsapp_number');
   await checkUniqueness({ ...data, phone_number, whatsapp_number });
 
-  const password_hash = await hashPassword(DEFAULT_CUSTOMER_PASSWORD);
+  const password_hash = await hashPassword(buildDefaultPassword(data.username));
   const now = new Date();
 
   const result = await sequelize.transaction(async (t) => {
@@ -128,6 +140,7 @@ async function createCustomerByStaff(data, creator) {
         user_id: user.id,
         phone_number,
         whatsapp_number,
+        phone_needs_correction: false,
         address: data.address,
         preferred_contact_method: data.preferred_contact_method,
         notes: data.notes || '',
@@ -142,9 +155,13 @@ async function createCustomerByStaff(data, creator) {
     return { user, customer };
   });
 
+  const welcomeToken = await createWelcomeLoginToken(result.user.id);
+
   notifyWelcomeSms({
     phoneNumber: result.customer.phone_number,
     username: result.user.username,
+    welcomeToken,
+    customerId: result.customer.id,
   });
 
   return result;
@@ -153,4 +170,5 @@ async function createCustomerByStaff(data, creator) {
 module.exports = {
   registerCustomer,
   createCustomerByStaff,
+  checkUniqueness,
 };

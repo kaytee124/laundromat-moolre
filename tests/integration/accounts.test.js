@@ -23,12 +23,13 @@ describe('Accounts API', () => {
     });
 
     it('returns requires_password_change for default staff password', async () => {
-      const { DEFAULT_CUSTOMER_PASSWORD } = require('../../utils/constants');
+      const { buildDefaultPassword } = require('../../utils/passwords');
       const { hashPassword } = require('../../services/authService');
       const username = uniqueUsername('defpass');
+      const defaultPassword = buildDefaultPassword(username);
       await User.create({
         username,
-        password_hash: await hashPassword(DEFAULT_CUSTOMER_PASSWORD),
+        password_hash: await hashPassword(defaultPassword),
         first_name: 'Default',
         last_name: 'Pass',
         role: 'admin',
@@ -38,7 +39,7 @@ describe('Accounts API', () => {
         date_joined: new Date(),
         updated_at: new Date(),
       });
-      const res = await login(username, DEFAULT_CUSTOMER_PASSWORD);
+      const res = await login(username, defaultPassword);
       expect(res.status).toBe(200);
       expect(res.body.requires_password_change).toBe(true);
     });
@@ -144,6 +145,7 @@ describe('Accounts API', () => {
           username: uniqueUsername('newadmin'),
           first_name: 'New',
           last_name: 'Admin',
+          phone_number: uniquePhone(),
         });
       expect(res.status).toBe(201);
       expect(res.body.user.role).toBe('admin');
@@ -157,6 +159,7 @@ describe('Accounts API', () => {
           username: uniqueUsername('failadmin'),
           first_name: 'Fail',
           last_name: 'Admin',
+          phone_number: uniquePhone(),
         });
       expect(res.status).toBe(403);
     });
@@ -210,16 +213,50 @@ describe('Accounts API', () => {
   });
 
   describe('POST /api/accounts/employee/create/', () => {
-    it('admin creates employee', async () => {
+    it('admin creates employee and sends credential SMS without magic link', async () => {
+      const moolreService = require('../../services/moolreService');
+      const { buildDefaultPassword } = require('../../utils/passwords');
+      const { waitForSms } = require('../helpers/wait');
+      const sendSmsSpy = jest.spyOn(moolreService, 'sendSms').mockResolvedValue({ status: 1, message: 'ok' });
+
+      const username = uniqueUsername('newemp');
+      const phone = uniquePhone();
       const res = await request(app)
         .post('/api/accounts/employee/create/')
         .set(tokens.admin.headers)
         .send({
-          username: uniqueUsername('newemp'),
+          username,
           first_name: 'New',
           last_name: 'Employee',
+          phone_number: phone,
         });
       expect(res.status).toBe(201);
+      expect(res.body.default_password).toBe(buildDefaultPassword(username));
+
+      await waitForSms(sendSmsSpy);
+
+      expect(sendSmsSpy).toHaveBeenCalled();
+      const msg = sendSmsSpy.mock.calls[0][0].message;
+      expect(msg).toContain(username);
+      expect(msg).toContain(buildDefaultPassword(username));
+      expect(msg).toMatch(/keep your credentials secret/i);
+      expect(msg).not.toContain('/welcome?');
+      expect(msg).not.toContain('token=');
+
+      sendSmsSpy.mockRestore();
+    });
+
+    it('rejects employee create without phone_number', async () => {
+      const res = await request(app)
+        .post('/api/accounts/employee/create/')
+        .set(tokens.admin.headers)
+        .send({
+          username: uniqueUsername('nophone'),
+          first_name: 'No',
+          last_name: 'Phone',
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error_code).toBe('MISSING_FIELDS');
     });
   });
 
@@ -262,6 +299,7 @@ describe('Accounts API', () => {
           username: uniqueUsername('newsuper'),
           first_name: 'New',
           last_name: 'Super',
+          phone_number: uniquePhone(),
         });
       expect(res.status).toBe(201);
     });
@@ -397,6 +435,7 @@ describe('Accounts API', () => {
           username: uniqueUsername('bootstrap'),
           first_name: 'Bootstrap',
           last_name: 'Super',
+          phone_number: uniquePhone(),
         });
 
       expect(res.status).toBe(201);
@@ -408,6 +447,7 @@ describe('Accounts API', () => {
         .post('/api/accounts/superadmin/create/')
         .send({
           username: uniqueUsername('bootstrap2'),
+          phone_number: uniquePhone(),
         });
 
       expect(res.status).toBe(401);
@@ -420,6 +460,7 @@ describe('Accounts API', () => {
         .set(tokens.admin.headers)
         .send({
           username: uniqueUsername('bootstrap3'),
+          phone_number: uniquePhone(),
         });
 
       expect(res.status).toBe(403);

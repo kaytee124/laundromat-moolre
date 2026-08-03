@@ -24,6 +24,11 @@ const ERROR_CATALOG = {
   DATE_RANGE_TOO_LARGE: { error_code: 'DATE_RANGE_TOO_LARGE', message: 'Date range cannot exceed 366 days', status_code: 400 },
   USERNAME_EXISTS: { error_code: 'USERNAME_EXISTS', message: 'Username already taken', status_code: 409 },
   PHONE_EXISTS: { error_code: 'PHONE_EXISTS', message: 'Phone number already registered', status_code: 409 },
+  PHONE_NEEDS_CORRECTION: {
+    error_code: 'PHONE_NEEDS_CORRECTION',
+    message: 'Customer phone number must be corrected before creating orders',
+    status_code: 422,
+  },
   INVALID_PASSWORD: { error_code: 'INVALID_PASSWORD', message: 'Password must be at least 8 characters', status_code: 422 },
   INVALID_DATE_FORMAT: { error_code: 'INVALID_DATE_FORMAT', message: 'Dates must be in YYYY-MM-DD format', status_code: 422 },
   MOOLRE_ERROR: { error_code: 'MOOLRE_ERROR', message: 'Failed to initialize payment', status_code: 500 },
@@ -38,8 +43,16 @@ const DEFAULT_ERROR_KEYS = {
   404: ['NOT_FOUND', 'ORDER_NOT_FOUND'],
   409: ['USERNAME_EXISTS'],
   429: ['RATE_LIMIT_EXCEEDED'],
-  422: ['VALIDATION_ERROR', 'INVALID_PASSWORD'],
+  422: ['VALIDATION_ERROR', 'INVALID_PASSWORD', 'PHONE_NEEDS_CORRECTION'],
   500: ['MOOLRE_ERROR', 'SERVER_ERROR'],
+};
+
+const GHANA_PHONE_SCHEMA = {
+  type: 'string',
+  description:
+    'Ghana phone: exactly 10 digits starting with `0` (e.g. `0502412618`), or `+233` plus 9 digits (e.g. `+233502412618`).',
+  example: '0502412618',
+  pattern: '^(0\\d{9}|\\+233\\d{9})$',
 };
 
 function errorResponse(status, description, ...keys) {
@@ -259,6 +272,11 @@ const AUTH_META = {
     security: csrfOnly,
     requiredAuth: 'CSRF only — `csrf_token` cookie + `X-CSRF-Token` header (no JWT). Swagger auto-injects.',
   },
+  'POST /api/accounts/welcome-login/': {
+    security: csrfOnly,
+    requiredAuth:
+      'CSRF only — reusable welcome/portal token from SMS magic link (valid until expiry). Rate-limited per IP.',
+  },
   'POST /api/accounts/logout/': {
     security: bearerCsrf,
     requiredAuth: `${AUTH_BEARER} Plus CSRF — \`X-CSRF-Token\` header matching \`csrf_token\` cookie.`,
@@ -394,6 +412,10 @@ const AUTH_META = {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: client.`,
   },
+  'POST /api/payments/cash/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
   'POST /api/payments/moolre/webhook/': {
     security: PUBLIC,
     requiredAuth: 'None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)',
@@ -485,8 +507,16 @@ const spec = {
       '- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.',
       '- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.',
       '',
+      '**Account create + SMS**',
+      '- Ghana phone format required on create/update: `0XXXXXXXXX` (10) or `+233XXXXXXXXX` (13).',
+      '- **Admin / employee / superadmin create** — `phone_number` is **compulsory**. Credential SMS (username + `Kolendo@{username}`, keep secret). **No** portal magic link. Response includes `default_password`.',
+      '- **Client (staff) create** — welcome SMS with username + password + magic link. Response does **not** include `default_password`.',
+      '- Magic login (`POST /api/accounts/welcome-login/`) is **client-only**. See `docs/frontend-welcome-magic-login.md`.',
+      '- SMS is written to an **outbox** and sent immediately; transient Moolre failures stay `pending` and are retried every **2 hours**. Permanent invalid-phone errors mark `customers.phone_needs_correction` and are not retried.',
+      '- `POST /api/orders/create/` returns `422 PHONE_NEEDS_CORRECTION` until staff updates the customer phone to a valid Ghana number.',
+      '',
       '**Order SMS notifications (side effects)**',
-      '- No dedicated SMS endpoint; the server calls Moolre `POST /open/sms/send` internally after certain order changes.',
+      '- No dedicated SMS endpoint; the server enqueues Moolre SMS via the outbox after certain order changes.',
       '- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).',
       '- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).',
       '- Triggers:',
@@ -494,7 +524,7 @@ const spec = {
       '  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`',
       '  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated',
       '  - **picked up** — when `picked_up` flips to `true`',
-      '- SMS failures are logged only; they do **not** fail payment or order API responses.',
+      '- SMS failures do **not** fail payment or order API responses (except order create when phone needs correction).',
       '- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.',
       '',
       '**Roles**: `superadmin`, `admin`, `employee`, `client`.',
@@ -560,6 +590,35 @@ const spec = {
           400: errorResponse(400, 'Missing credentials', 'MISSING_FIELDS'),
           401: errorResponse(401, 'Invalid credentials', 'INVALID_CREDENTIALS'),
           403: errorResponse(403, 'CSRF validation failed', 'CSRF_VALIDATION_FAILED'),
+        },
+      },
+    },
+    '/api/accounts/welcome-login/': {
+      post: {
+        tags: ['Accounts'],
+        summary: 'Welcome / portal magic-link login',
+        description:
+          'Exchanges a welcome/portal token (from SMS `{CUSTOMER_APP_URL}/welcome?token=…`, optional `next` for deep link) for a normal session. ' +
+          'Token is reusable until expiry (default 30 days via `WELCOME_LOGIN_TOKEN_TTL_HOURS`). Requires CSRF. Rate-limited per IP. ' +
+          'Response matches login, including `requires_password_change` when still on the default password.',
+        security: csrfOnly,
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/WelcomeLoginRequest' } },
+          },
+        },
+        responses: {
+          200: jsonResponse('Welcome login successful', '#/components/schemas/LoginResponse', {
+            access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example',
+            user: EXAMPLE_USER,
+            requires_password_change: true,
+            message: 'Please change your default password',
+          }),
+          400: errorResponse(400, 'Missing token', 'MISSING_FIELDS'),
+          401: errorResponse(401, 'Invalid or expired welcome link', 'INVALID_TOKEN'),
+          403: errorResponse(403, 'CSRF validation failed', 'CSRF_VALIDATION_FAILED'),
+          429: errorResponse(429, 'Too many requests', 'RATE_LIMIT_EXCEEDED'),
         },
       },
     },
@@ -679,6 +738,11 @@ const spec = {
       post: {
         tags: ['Accounts'],
         summary: 'Create admin (superadmin only)',
+        description:
+          'Creates an admin with temporary password `Kolendo@{username}`. ' +
+          '`phone_number` is **compulsory**. ' +
+          'Sends credential SMS (username + password, keep secret) — no portal magic link. ' +
+          'Response includes `default_password` for the creator.',
         security: bearer,
         requestBody: {
           required: true,
@@ -689,6 +753,7 @@ const spec = {
             description: 'Admin created',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffCreateResponse' } } },
           },
+          400: stdErrors[400],
           401: stdErrors[401],
           403: stdErrors[403],
           409: stdErrors[409],
@@ -737,6 +802,11 @@ const spec = {
       post: {
         tags: ['Accounts'],
         summary: 'Create employee (admin or superadmin)',
+        description:
+          'Creates an employee with temporary password `Kolendo@{username}`. ' +
+          '`phone_number` is **compulsory**. ' +
+          'Sends credential SMS (username + password, keep secret) — no portal magic link. ' +
+          'Response includes `default_password` for the creator.',
         security: bearer,
         requestBody: {
           required: true,
@@ -747,6 +817,7 @@ const spec = {
             description: 'Employee created',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffCreateResponse' } } },
           },
+          400: stdErrors[400],
           401: stdErrors[401],
           403: stdErrors[403],
           409: stdErrors[409],
@@ -813,7 +884,9 @@ const spec = {
         tags: ['Accounts'],
         summary: 'Create superadmin',
         description:
-          'Public when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token.',
+          'Public when no superadmin exists (initial bootstrap). After that, requires superadmin Bearer token. ' +
+          '`phone_number` is **compulsory**. Temporary password `Kolendo@{username}` is returned and sent by SMS ' +
+          '(username + password, keep secret; no portal magic link).',
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffCreateRequest' } } },
@@ -823,6 +896,7 @@ const spec = {
             description: 'Superadmin created',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/StaffCreateResponse' } } },
           },
+          400: stdErrors[400],
           401: stdErrors[401],
           403: stdErrors[403],
           409: stdErrors[409],
@@ -1027,6 +1101,10 @@ const spec = {
       post: {
         tags: ['Customers'],
         summary: 'Staff creates customer',
+        description:
+          'Creates a client with temporary password `Kolendo@{username}`. ' +
+          'Sends welcome SMS (username + password + portal magic link). ' +
+          '`default_password` is **not** returned — credentials are SMS-only.',
         security: bearer,
         requestBody: {
           required: true,
@@ -1143,6 +1221,8 @@ const spec = {
       post: {
         tags: ['Orders'],
         summary: 'Create order (staff)',
+        description:
+          'Creates an order for a customer. Rejects with `422 PHONE_NEEDS_CORRECTION` if the customer phone was marked invalid by SMS and has not been corrected yet.',
         security: bearer,
         requestBody: {
           required: true,
@@ -1156,6 +1236,11 @@ const spec = {
           400: stdErrors[400],
           401: stdErrors[401],
           403: stdErrors[403],
+          422: errorResponse(
+            422,
+            'Customer phone needs correction',
+            'PHONE_NEEDS_CORRECTION'
+          ),
         },
       },
     },
@@ -1225,6 +1310,30 @@ const spec = {
           403: stdErrors[403],
           404: stdErrors[404],
           500: stdErrors[500],
+        },
+      },
+    },
+    '/api/payments/cash/': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Record cash payment (staff)',
+        description:
+          'Staff records a cash payment against an order. Creates a paid Payment row (`payment_method: cash`) with amount, ' +
+          '`paid_at`, and `created_by` = accepting staff. Syncs order `amount_paid` / `payment_status` / optional auto-`in_progress` SMS.',
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/CashPaymentRequest' } } },
+        },
+        responses: {
+          201: {
+            description: 'Cash payment recorded',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/CashPaymentResponse' } } },
+          },
+          400: stdErrors[400],
+          401: stdErrors[401],
+          403: stdErrors[403],
+          404: stdErrors[404],
         },
       },
     },
@@ -1442,6 +1551,16 @@ const spec = {
           password: { type: 'string', format: 'password' },
         },
       },
+      WelcomeLoginRequest: {
+        type: 'object',
+        required: ['token'],
+        properties: {
+          token: {
+            type: 'string',
+            description: 'One-time welcome token from SMS magic link query param',
+          },
+        },
+      },
       LoginResponse: {
         type: 'object',
         properties: {
@@ -1491,6 +1610,7 @@ const spec = {
           updated_by_name: { type: 'string', nullable: true },
           phone_number: { type: 'string', nullable: true },
           whatsapp_number: { type: 'string', nullable: true },
+          phone_needs_correction: { type: 'boolean' },
           address: { type: 'string', nullable: true },
           preferred_contact_method: { type: 'string', nullable: true },
           notes: { type: 'string', nullable: true },
@@ -1521,19 +1641,26 @@ const spec = {
           username: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          phone_number: { type: 'string' },
-          whatsapp_number: { type: 'string' },
+          phone_number: GHANA_PHONE_SCHEMA,
+          whatsapp_number: GHANA_PHONE_SCHEMA,
           address: { type: 'string' },
           preferred_contact_method: { type: 'string', enum: ['phone', 'whatsapp'] },
         },
       },
       StaffCreateRequest: {
         type: 'object',
-        required: ['username', 'first_name'],
+        description:
+          'Create admin, employee, or superadmin. `phone_number` is compulsory — used for credential SMS (no magic link).',
+        required: ['username', 'first_name', 'phone_number'],
         properties: {
           username: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
+          phone_number: {
+            ...GHANA_PHONE_SCHEMA,
+            description:
+              'Compulsory for admin, employee, and superadmin. Ghana format. Credentials SMS is sent here (username + password). No portal magic link.',
+          },
         },
       },
       StaffCreateResponse: {
@@ -1541,7 +1668,12 @@ const spec = {
         properties: {
           message: { type: 'string' },
           user: { $ref: '#/components/schemas/User' },
-          default_password: { type: 'string' },
+          default_password: {
+            type: 'string',
+            description:
+              'Temporary password Kolendo@{username}. Also sent by SMS. Magic links are client-only.',
+            example: 'Kolendo@newemployee',
+          },
           note: { type: 'string' },
         },
       },
@@ -1558,8 +1690,8 @@ const spec = {
         properties: {
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          phone_number: { type: 'string' },
-          whatsapp_number: { type: 'string' },
+          phone_number: GHANA_PHONE_SCHEMA,
+          whatsapp_number: GHANA_PHONE_SCHEMA,
           address: { type: 'string' },
           preferred_contact_method: { type: 'string' },
           notes: { type: 'string' },
@@ -1587,6 +1719,10 @@ const spec = {
           is_staff: { type: 'boolean' },
           phone_number: { type: 'string', nullable: true },
           whatsapp_number: { type: 'string', nullable: true },
+          phone_needs_correction: {
+            type: 'boolean',
+            description: 'When true, staff cannot create orders for this customer until phone is updated',
+          },
           address: { type: 'string', nullable: true },
           preferred_contact_method: { type: 'string', nullable: true },
           notes: { type: 'string', nullable: true },
@@ -1637,6 +1773,7 @@ const spec = {
             username: { type: 'string' },
             phone_number: { type: 'string', nullable: true },
             whatsapp_number: { type: 'string', nullable: true },
+            phone_needs_correction: { type: 'boolean' },
             address: { type: 'string', nullable: true },
             preferred_contact_method: { type: 'string', nullable: true },
             notes: { type: 'string', nullable: true },
@@ -1678,8 +1815,8 @@ const spec = {
           password: { type: 'string', minLength: 8 },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          phone_number: { type: 'string' },
-          whatsapp_number: { type: 'string' },
+          phone_number: GHANA_PHONE_SCHEMA,
+          whatsapp_number: GHANA_PHONE_SCHEMA,
           address: { type: 'string' },
           preferred_contact_method: { type: 'string', enum: ['phone', 'whatsapp'] },
         },
@@ -1702,8 +1839,8 @@ const spec = {
           username: { type: 'string' },
           first_name: { type: 'string' },
           last_name: { type: 'string' },
-          phone_number: { type: 'string' },
-          whatsapp_number: { type: 'string' },
+          phone_number: GHANA_PHONE_SCHEMA,
+          whatsapp_number: GHANA_PHONE_SCHEMA,
           address: { type: 'string' },
           preferred_contact_method: { type: 'string', enum: ['phone', 'whatsapp'] },
         },
@@ -1714,8 +1851,11 @@ const spec = {
           message: { type: 'string' },
           user: { $ref: '#/components/schemas/User' },
           customer: { type: 'object', properties: { id: { type: 'integer' } } },
-          default_password: { type: 'string' },
-          note: { type: 'string' },
+          note: {
+            type: 'string',
+            description:
+              'Credentials (username + Kolendo@{username} and magic link) are sent by SMS only — not returned in this response',
+          },
         },
       },
       Service: {
@@ -1949,6 +2089,57 @@ const spec = {
         properties: {
           order_id: { type: 'integer' },
           amount: { type: 'number' },
+        },
+      },
+      CashPaymentRequest: {
+        type: 'object',
+        required: ['order_id', 'amount', 'paid_at'],
+        properties: {
+          order_id: { type: 'integer' },
+          amount: { type: 'number', description: 'Cash amount received (must not exceed remaining balance)' },
+          paid_at: {
+            type: 'string',
+            format: 'date-time',
+            description: 'When the cash was received (ISO date or datetime)',
+          },
+        },
+      },
+      CashPaymentResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', example: 'success' },
+          message: { type: 'string' },
+          data: {
+            type: 'object',
+            properties: {
+              payment: {
+                type: 'object',
+                properties: {
+                  id: { type: 'integer' },
+                  order_id: { type: 'integer' },
+                  externalref: { type: 'string' },
+                  amount: { type: 'string' },
+                  status: { type: 'string', example: 'paid' },
+                  payment_method: { type: 'string', example: 'cash' },
+                  paid_at: { type: 'string', format: 'date-time' },
+                  created_by: { type: 'integer', description: 'Staff user who accepted the cash' },
+                  currency: { type: 'string', example: 'GHS' },
+                },
+              },
+              order: {
+                type: 'object',
+                properties: {
+                  id: { type: 'integer' },
+                  order_number: { type: 'string' },
+                  total_amount: { type: 'string' },
+                  amount_paid: { type: 'string' },
+                  balance: { type: 'string' },
+                  payment_status: { type: 'string' },
+                  order_status: { type: 'string' },
+                },
+              },
+            },
+          },
         },
       },
       UssdPaymentInitializeRequest: {
@@ -2279,17 +2470,16 @@ function applyDocumentation(openApiSpec) {
     customer: { id: 1 },
   };
   schemas.CustomerStaffCreateResponse.example = {
-    message: 'Customer created successfully with default password',
+    message: 'Customer created successfully. Login credentials were sent by SMS.',
     user: EXAMPLE_USER,
     customer: { id: 1 },
-    default_password: 'TempPass123!',
-    note: 'Customer should change password on first login',
+    note: 'Customer must change password on first login. Default password is not returned in this response.',
   };
   schemas.StaffCreateResponse.example = {
     message: 'Admin created successfully with default password',
     user: { ...EXAMPLE_USER, role: 'admin', is_staff: true },
-    default_password: 'TempPass123!',
-    note: 'User should change password on first login',
+    default_password: 'Kolendo@newadmin',
+    note: 'Credentials were also sent by SMS. User should change password on first login',
   };
   schemas.ServiceListResponse.example = {
     status: 'success',
@@ -2381,8 +2571,8 @@ function applyDocumentation(openApiSpec) {
       201: {
         message: 'Admin created successfully with default password',
         user: { ...EXAMPLE_USER, role: 'admin', is_staff: true },
-        default_password: 'TempPass123!',
-        note: 'User should change password on first login',
+        default_password: 'Kolendo@newadmin',
+        note: 'Credentials were also sent by SMS. User should change password on first login',
       },
     },
     [opKey('/api/accounts/admin/update/', 'patch')]: {
@@ -2395,8 +2585,8 @@ function applyDocumentation(openApiSpec) {
       201: {
         message: 'Employee created successfully with default password',
         user: { ...EXAMPLE_USER, role: 'employee', is_staff: true },
-        default_password: 'TempPass123!',
-        note: 'User should change password on first login',
+        default_password: 'Kolendo@newemployee',
+        note: 'Credentials were also sent by SMS. User should change password on first login',
       },
     },
     [opKey('/api/accounts/employee/update/', 'patch')]: {
@@ -2415,8 +2605,8 @@ function applyDocumentation(openApiSpec) {
       201: {
         message: 'Superadmin created successfully with default password',
         user: { ...EXAMPLE_USER, role: 'superadmin', is_superuser: true, is_staff: true },
-        default_password: 'TempPass123!',
-        note: 'User should change password on first login',
+        default_password: 'Kolendo@newsuperadmin',
+        note: 'Credentials were also sent by SMS. User should change password on first login',
       },
     },
     [opKey('/api/accounts/superadmin/update/', 'patch')]: {
@@ -2521,19 +2711,25 @@ function applyDocumentation(openApiSpec) {
       username: 'client1',
       password: 'secretpassword',
     },
+    [opKey('/api/accounts/welcome-login/', 'post')]: {
+      token: 'base64url-welcome-token-from-sms',
+    },
     [opKey('/api/accounts/admin/create/', 'post')]: {
       username: 'newadmin',
       first_name: 'New',
       last_name: 'Admin',
+      phone_number: '0502412618',
     },
     [opKey('/api/accounts/employee/create/', 'post')]: {
       username: 'newemployee',
       first_name: 'New',
       last_name: 'Employee',
+      phone_number: '0502412619',
     },
     [opKey('/api/accounts/superadmin/create/', 'post')]: {
       username: 'newsuper',
       first_name: 'New',
+      phone_number: '0502412620',
     },
     [opKey('/api/customers/register/', 'post')]: {
       username: 'newclient',
@@ -2570,6 +2766,11 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/payments/initialize/', 'post')]: {
       order_id: 1,
       amount: 50,
+    },
+    [opKey('/api/payments/cash/', 'post')]: {
+      order_id: 1,
+      amount: 50,
+      paid_at: '2026-08-03T14:30:00.000Z',
     },
     [opKey('/api/orders/create/', 'post')]: {
       customer_id: 1,

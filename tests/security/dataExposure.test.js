@@ -1,7 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
-const { recordFinding } = require('../reportSummary');
 
 function collectSensitiveKeys(obj, found = []) {
   if (!obj || typeof obj !== 'object') return found;
@@ -47,7 +46,7 @@ describe('Security: Data exposure', () => {
     expect(collectSensitiveKeys(res.body)).toHaveLength(0);
   });
 
-  it('staff-create customer response exposes default_password', async () => {
+  it('staff-create customer response does not expose default_password', async () => {
     const res = await request(app)
       .post('/api/customers/create/')
       .set(tokens.employee.headers)
@@ -62,8 +61,7 @@ describe('Security: Data exposure', () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.default_password).toBeDefined();
-    recordFinding('DEFAULT_PASSWORD_EXPOSED', 'Staff-create returns default_password in response');
+    expect(res.body.default_password).toBeUndefined();
   });
 
   it('500 responses do not leak stack traces', async () => {

@@ -10,7 +10,7 @@ const SECURITY_NOTES = [
   '[SECURITY] CSRF double-submit required on login, refresh, logout, and silent token refresh.',
   '[SECURITY] No express.json() body size limit — oversized payloads can exhaust memory (app-layer DoS).',
   '[SECURITY] Register returns USERNAME_EXISTS for duplicate usernames.',
-  '[SECURITY] default_password returned in staff-create API responses — information disclosure.',
+  '[SECURITY] Staff-role create still returns default_password; client create does not (SMS only).',
   '[SECURITY] LIKE search uses unescaped % wildcards — can cause slow queries under search abuse.',
   '[SECURITY] No helmet() security headers — add when serving any HTML UI.',
   '[SECURITY] Review test failures above for RBAC gaps, IDOR, mass assignment, and validation holes.',

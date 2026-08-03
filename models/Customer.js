@@ -9,6 +9,11 @@ module.exports = (sequelize) => {
       user_id: { type: DataTypes.BIGINT, allowNull: false, unique: true },
       phone_number: { type: DataTypes.STRING(20), allowNull: false, unique: true },
       whatsapp_number: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+      phone_needs_correction: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
       address: { type: DataTypes.TEXT, allowNull: false },
       preferred_contact_method: { type: DataTypes.STRING(20), allowNull: false },
       notes: { type: DataTypes.TEXT, allowNull: false, defaultValue: '' },

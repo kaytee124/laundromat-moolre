@@ -7,9 +7,10 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { User, Customer, sequelize } = require('../models');
 const { hashPassword } = require('../services/authService');
-const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
+const { buildDefaultPassword } = require('../utils/passwords');
 const { normalizeMsisdn, getMsisdnLookupVariants } = require('../utils/phone');
 const { sendWelcomeSms } = require('../services/customerNotificationService');
+const { createWelcomeLoginToken } = require('../services/welcomeLoginTokenService');
 
 const PHONE = '0502412618';
 const USERNAME = 'client_0502412618';
@@ -37,7 +38,7 @@ async function main() {
       throw new Error(`Username ${USERNAME} already exists without matching customer phone`);
     }
 
-    const password_hash = await hashPassword(DEFAULT_CUSTOMER_PASSWORD);
+    const password_hash = await hashPassword(buildDefaultPassword(USERNAME));
     const now = new Date();
 
     await sequelize.transaction(async (t) => {
@@ -80,7 +81,10 @@ async function main() {
     console.log(`Client already exists (customer_id ${customer.id}, username ${username})`);
   }
 
-  await sendWelcomeSms({ phoneNumber: phone, username });
+  const welcomeToken = await createWelcomeLoginToken(
+    customer.user?.id || (await User.findOne({ where: { username } })).id
+  );
+  await sendWelcomeSms({ phoneNumber: phone, username, welcomeToken });
   console.log(`Welcome SMS sent to ${phone} (international recipient via formatSmsRecipient)`);
   console.log(JSON.stringify({ created, username, phone }, null, 2));
 }

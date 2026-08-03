@@ -4,8 +4,9 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { User, RefreshToken } = require('../models');
 const jwtConfig = require('../config/jwt');
-const { DEFAULT_CUSTOMER_PASSWORD } = require('../utils/constants');
+const { buildDefaultPassword } = require('../utils/passwords');
 const { AppError } = require('../utils/errors');
+const { consumeWelcomeLoginToken } = require('./welcomeLoginTokenService');
 
 function hashPassword(password) {
   return bcrypt.hash(password, 10);
@@ -96,7 +97,34 @@ async function login(username, password) {
   await user.save();
 
   const tokens = await issueTokens(user);
-  const requiresPasswordChange = await comparePassword(DEFAULT_CUSTOMER_PASSWORD, user.password_hash);
+  const requiresPasswordChange = await comparePassword(
+    buildDefaultPassword(user.username),
+    user.password_hash
+  );
+
+  return { user, tokens, requiresPasswordChange };
+}
+
+async function loginWithWelcomeToken(rawToken) {
+  const userId = await consumeWelcomeLoginToken(rawToken);
+  const user = await User.findByPk(userId);
+
+  if (!user || !user.is_active) {
+    throw new AppError(
+      'ACCOUNT_INACTIVE',
+      'Your account has been deactivated. Please contact the administrator for assistance.',
+      401
+    );
+  }
+
+  user.last_login = new Date();
+  await user.save();
+
+  const tokens = await issueTokens(user);
+  const requiresPasswordChange = await comparePassword(
+    buildDefaultPassword(user.username),
+    user.password_hash
+  );
 
   return { user, tokens, requiresPasswordChange };
 }
@@ -170,7 +198,12 @@ async function changePassword(userId, oldPassword, newPassword, confirmPassword)
     throw new AppError('VALIDATION_ERROR', 'Password must be at least 8 characters', 422);
   }
 
-  if (newPassword === DEFAULT_CUSTOMER_PASSWORD) {
+  const user = await User.findByPk(userId);
+  if (!user) {
+    throw new AppError('USER_NOT_FOUND', 'User not found', 404);
+  }
+
+  if (newPassword === buildDefaultPassword(user.username)) {
     throw new AppError(
       'VALIDATION_ERROR',
       'You cannot use the default password. Please choose a different password.',
@@ -178,7 +211,6 @@ async function changePassword(userId, oldPassword, newPassword, confirmPassword)
     );
   }
 
-  const user = await User.findByPk(userId);
   if (!(await comparePassword(oldPassword, user.password_hash))) {
     throw new AppError('VALIDATION_ERROR', 'Old password is incorrect.', 400);
   }
@@ -227,6 +259,7 @@ module.exports = {
   hashPassword,
   comparePassword,
   login,
+  loginWithWelcomeToken,
   logout,
   refresh,
   verifyToken,

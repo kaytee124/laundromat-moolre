@@ -128,6 +128,9 @@ describe('Order SMS notifications', () => {
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/received/i);
       expect(sendSmsSpy.mock.calls[0][0].message).toContain(res.body.data.order_number);
       expect(sendSmsSpy.mock.calls[0][0].message).toContain(CUSTOMER_APP_URL);
+      expect(sendSmsSpy.mock.calls[0][0].message).toContain('/welcome?');
+      expect(sendSmsSpy.mock.calls[0][0].message).toContain('token=');
+      expect(sendSmsSpy.mock.calls[0][0].message).toContain(`next=%2Forders%2F${res.body.data.id}`);
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/pay/i);
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/portal/i);
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/Total: GHS/i);

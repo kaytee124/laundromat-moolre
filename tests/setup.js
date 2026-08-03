@@ -22,9 +22,11 @@ process.env.MOOLRE_PATH_TRANSACT_STATUS =
 process.env.MOOLRE_PATH_TRANSACT_PAYMENT =
   process.env.MOOLRE_PATH_TRANSACT_PAYMENT || '/open/transact/payment';
 process.env.MOOLRE_PATH_SMS_SEND = process.env.MOOLRE_PATH_SMS_SEND || '/open/sms/send';
-process.env.DEFAULT_CUSTOMER_PASSWORD = process.env.DEFAULT_CUSTOMER_PASSWORD || 'moolre123!';
 process.env.CUSTOMER_APP_URL =
   process.env.CUSTOMER_APP_URL || 'https://laundry.bafrow-health.org';
+process.env.WELCOME_LOGIN_RATE_LIMIT_MAX = process.env.WELCOME_LOGIN_RATE_LIMIT_MAX || '20';
+process.env.WELCOME_LOGIN_RATE_LIMIT_WINDOW_MS =
+  process.env.WELCOME_LOGIN_RATE_LIMIT_WINDOW_MS || '900000';
 
 
 const { sequelize } = require('../models');

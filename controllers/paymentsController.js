@@ -10,6 +10,15 @@ async function initialize(req, res) {
   });
 }
 
+async function recordCash(req, res) {
+  const data = await paymentService.recordCashPayment(req.user, req.body);
+  res.status(201).json({
+    status: 'success',
+    message: 'Cash payment recorded successfully',
+    data,
+  });
+}
+
 async function moolreWebhook(req, res) {
   await paymentService.handleMoolreWebhook(req.body);
   res.status(200).json({ status: 'ok' });
@@ -20,4 +29,4 @@ async function getStatus(req, res) {
   res.json(data);
 }
 
-module.exports = { initialize, moolreWebhook, getStatus };
+module.exports = { initialize, recordCash, moolreWebhook, getStatus };

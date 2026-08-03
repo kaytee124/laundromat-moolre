@@ -356,6 +356,13 @@ async function createOrder(data, user) {
 
   const customer = await Customer.findByPk(data.customer_id);
   if (!customer) throw new AppError('VALIDATION_ERROR', 'Customer not found', 400);
+  if (customer.phone_needs_correction) {
+    throw new AppError(
+      'PHONE_NEEDS_CORRECTION',
+      'Customer phone number must be corrected before creating orders',
+      422
+    );
+  }
 
   let assignedTo = data.assigned_to;
   if (user.role === 'employee' && !assignedTo) {

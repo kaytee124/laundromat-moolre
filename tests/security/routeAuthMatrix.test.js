@@ -4,6 +4,7 @@ const app = require('../../app');
 const PUBLIC_ROUTES = [
   { method: 'get', path: '/api/accounts/csrf/', expectStatus: [200] },
   { method: 'post', path: '/api/accounts/login/', body: { username: 'x', password: 'y' }, expectStatus: [400, 401, 403] },
+  { method: 'post', path: '/api/accounts/welcome-login/', body: { token: 'x' }, expectStatus: [400, 401, 403, 429] },
   { method: 'post', path: '/api/accounts/token/refresh/', body: {}, expectStatus: [401, 403] },
   { method: 'post', path: '/api/accounts/token/verify/', body: {}, expectStatus: [400, 401] },
   { method: 'post', path: '/api/customers/register/', body: {}, expectStatus: [400, 422] },
@@ -42,6 +43,7 @@ const PROTECTED_ROUTES = [
   { method: 'get', path: '/api/orders/1/' },
   { method: 'put', path: '/api/orders/1/update/', body: {} },
   { method: 'post', path: '/api/payments/initialize/', body: {} },
+  { method: 'post', path: '/api/payments/cash/', body: {} },
   { method: 'get', path: '/api/dashboard/metrics/' },
   { method: 'get', path: '/api/dashboard/revenue-report/' },
 ];

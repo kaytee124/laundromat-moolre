@@ -22,6 +22,8 @@ const Payment = require('./Payment')(sequelize);
 const RefreshToken = require('./RefreshToken')(sequelize);
 const OrderStatusHistory = require('./OrderStatusHistory')(sequelize);
 const UssdSession = require('./UssdSession')(sequelize);
+const WelcomeLoginToken = require('./WelcomeLoginToken')(sequelize);
+const SmsOutbox = require('./SmsOutbox')(sequelize);
 
 // User self-reference
 User.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
@@ -64,6 +66,10 @@ Order.hasMany(Payment, { as: 'payments', foreignKey: 'order_id' });
 RefreshToken.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 User.hasMany(RefreshToken, { as: 'refresh_tokens', foreignKey: 'user_id' });
 
+// WelcomeLoginToken
+WelcomeLoginToken.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+User.hasMany(WelcomeLoginToken, { as: 'welcome_login_tokens', foreignKey: 'user_id' });
+
 // OrderStatusHistory
 OrderStatusHistory.belongsTo(Order, { as: 'order', foreignKey: 'order_id' });
 OrderStatusHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by' });
@@ -82,4 +88,6 @@ module.exports = {
   RefreshToken,
   OrderStatusHistory,
   UssdSession,
+  WelcomeLoginToken,
+  SmsOutbox,
 };

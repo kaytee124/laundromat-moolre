@@ -4,6 +4,7 @@ const app = require('./app');
 const { sequelize } = require('./models');
 const { runPendingMigrations, shouldRunMigrationsOnStart } = require('./lib/runMigrations');
 const { startPaymentReconciliation } = require('./jobs/paymentReconciliation');
+const { startSmsOutboxWorker } = require('./jobs/smsOutboxWorker');
 const { ensurePostmanCustomer } = require('./lib/seedPostmanCustomer');
 const { backfillOrderSheet } = require('./lib/backfillOrderSheet');
 const { seedSampleOrders } = require('./lib/seedSampleOrders');
@@ -36,6 +37,7 @@ async function start() {
 
     if (NODE_ENV !== 'test') {
       startPaymentReconciliation();
+      startSmsOutboxWorker();
     }
 
     app.listen(PORT, () => {

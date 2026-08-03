@@ -8,6 +8,22 @@ This document describes the end-to-end path from a client paying for an order th
 |------|------|--------------|--------------|
 | **Web client** | CSRF + JWT (`client` role) | `POST /api/payments/initialize/` | After Moolre confirms payment (≥30% → `in_progress`) and when staff marks `completed` |
 | **USSD** | None (phone lookup) | `POST /api/ussd/payments/initialize/` | Same post-payment behavior as web |
+| **Cash (staff)** | JWT (`admin` / `employee` / `superadmin`) | `POST /api/payments/cash/` | Same ≥30% → `in_progress` SMS when threshold met |
+
+### Staff cash payment
+
+```
+POST /api/payments/cash/
+Authorization: Bearer <staff access>
+
+{
+  "order_id": 13,
+  "amount": 50.00,
+  "paid_at": "2026-08-03T14:30:00.000Z"
+}
+```
+
+Creates a **paid** Payment row (`payment_method: cash`) with `created_by` = accepting staff and the given `paid_at`, then syncs order `amount_paid` / `payment_status` / `balance`.
 
 Swagger UI at `/api/docs` documents these endpoints and notes SMS as side effects on payment and order-update operations.
 
@@ -24,7 +40,7 @@ Configure in `.env`:
 - `MOOLRE_API_BASE` — API host (e.g. `https://api.moolre.com`)
 - `MOOLRE_MERCHANT_EMAIL` — merchant email for Generate Payment Link
 - `MOOLRE_PATH_EMBED_LINK`, `MOOLRE_PATH_TRANSACT_STATUS`, `MOOLRE_PATH_TRANSACT_PAYMENT`, `MOOLRE_PATH_SMS_SEND` — path suffixes under `MOOLRE_API_BASE`
-- `DEFAULT_CUSTOMER_PASSWORD` — default password for staff-created users
+- `DEFAULT_CUSTOMER_PASSWORD` — **deprecated**; new staff-created passwords are `Kolendo@{username}` (see [frontend-portal-links-and-cash-payments.md](./frontend-portal-links-and-cash-payments.md))
 
 ### SMS (Moolre)
 
@@ -34,6 +50,9 @@ Configure in `.env`:
 ### Data
 
 - Customer must have `phone_number` on their profile (used as SMS recipient, formatted to `233…`).
+- Ghana format required: **10 digits starting with `0`**, or **`+233` + 9 digits** (length 13).
+- If Moolre reports an invalid/nonexistent number, `phone_needs_correction` is set and **new orders cannot be created** for that customer until staff updates the phone.
+- SMS is queued in `sms_outbox` and retried every **2 hours** when Moolre is temporarily unavailable (`node scripts/processSmsOutbox.js` for a manual run).
 - Order must belong to the paying customer and have `payment_status` other than fully paid.
 
 ## Step-by-step: web client flow

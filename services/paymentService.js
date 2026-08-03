@@ -135,6 +135,129 @@ async function validateOrderForPayment(order, paymentAmount) {
   }
 }
 
+function parsePaidAt(paidAt) {
+  if (paidAt == null || paidAt === '') {
+    throw new AppError('MISSING_FIELDS', 'paid_at is required', 400);
+  }
+  const date = paidAt instanceof Date ? paidAt : new Date(paidAt);
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError('VALIDATION_ERROR', 'paid_at must be a valid ISO date or datetime', 400);
+  }
+  return date;
+}
+
+/**
+ * Staff records a cash payment against an order.
+ */
+async function recordCashPayment(staffUser, { order_id, amount, paid_at }) {
+  if (!['admin', 'superadmin', 'employee'].includes(staffUser.role)) {
+    throw new AppError('INSUFFICIENT_PERMISSIONS', 'Only staff can record cash payments', 403);
+  }
+
+  if (!order_id) {
+    throw new AppError('MISSING_FIELDS', 'order_id is required', 400);
+  }
+
+  const paymentAmount = parseFloat(amount);
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+    throw new AppError('VALIDATION_ERROR', 'amount must be a positive number', 400);
+  }
+
+  const paidAtDate = parsePaidAt(paid_at);
+
+  const order = await Order.findByPk(order_id);
+  if (!order) {
+    throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
+  }
+
+  await validateOrderForPayment(order, paymentAmount);
+
+  const externalref = generateExternalRef(order.id);
+  const now = new Date();
+  let orderStatusTransition = null;
+  let payment;
+
+  await sequelize.transaction(async (t) => {
+    payment = await Payment.create(
+      {
+        order_id: order.id,
+        externalref,
+        amount: paymentAmount,
+        status: 'paid',
+        payment_method: 'cash',
+        provider: null,
+        currency: 'GHS',
+        value: paymentAmount,
+        paid_at: paidAtDate,
+        metadata: {
+          order_id: order.id,
+          order_number: order.order_number,
+          recorded_by: staffUser.id,
+          source: 'staff_cash',
+        },
+        created_by: staffUser.id,
+        updated_by: staffUser.id,
+        created_at: now,
+        updated_at: now,
+      },
+      { transaction: t }
+    );
+
+    const syncResult = await orderService.syncOrderPaymentStatus(order.id, t);
+    orderStatusTransition = {
+      orderId: order.id,
+      previousStatus: syncResult.previousOrderStatus,
+      newStatus: syncResult.order.order_status,
+    };
+  });
+
+  if (orderStatusTransition && orderStatusTransition.previousStatus !== orderStatusTransition.newStatus) {
+    orderNotificationService
+      .notifyOrderStatusChange(
+        orderStatusTransition.orderId,
+        orderStatusTransition.previousStatus,
+        orderStatusTransition.newStatus
+      )
+      .catch((err) => {
+        console.error(
+          JSON.stringify({
+            event: 'order_notification_error',
+            orderId: orderStatusTransition.orderId,
+            error: err.message,
+          })
+        );
+      });
+  }
+
+  await payment.reload();
+  const updatedOrder = await Order.findByPk(order.id);
+  const total = parseFloat(updatedOrder.total_amount);
+  const amountPaid = parseFloat(updatedOrder.amount_paid);
+
+  return {
+    payment: {
+      id: payment.id,
+      order_id: payment.order_id,
+      externalref: payment.externalref,
+      amount: String(payment.amount),
+      status: payment.status,
+      payment_method: payment.payment_method,
+      paid_at: payment.paid_at,
+      created_by: payment.created_by,
+      currency: payment.currency,
+    },
+    order: {
+      id: updatedOrder.id,
+      order_number: updatedOrder.order_number,
+      total_amount: String(updatedOrder.total_amount),
+      amount_paid: String(updatedOrder.amount_paid),
+      balance: Math.max(0, total - amountPaid).toFixed(2),
+      payment_status: updatedOrder.payment_status,
+      order_status: updatedOrder.order_status,
+    },
+  };
+}
+
 async function createMoolreWebPayment({
   order,
   customer,
@@ -529,6 +652,7 @@ async function reconcilePendingPayments() {
 module.exports = {
   initializePayment,
   initializePaymentForUssd,
+  recordCashPayment,
   handleMoolreWebhook,
   getPaymentStatus,
   fetchAndApplyPaymentStatus,

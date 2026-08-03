@@ -117,6 +117,65 @@ describe('Payments API', () => {
     });
   });
 
+  describe('POST /api/payments/cash/', () => {
+    it('employee records cash payment and updates order balance', async () => {
+      const service = await createService(ctx.admin, { price: 100 });
+      const cashOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        quantity: 1,
+        unit_price: 100,
+      });
+
+      const paidAt = '2026-08-03T14:30:00.000Z';
+      const res = await request(app)
+        .post('/api/payments/cash/')
+        .set(tokens.employee.headers)
+        .send({ order_id: cashOrder.id, amount: 40, paid_at: paidAt });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.payment.payment_method).toBe('cash');
+      expect(res.body.data.payment.status).toBe('paid');
+      expect(parseFloat(res.body.data.payment.amount)).toBe(40);
+      expect(res.body.data.payment.created_by).toBe(ctx.employee.id);
+      expect(new Date(res.body.data.payment.paid_at).toISOString()).toBe(paidAt);
+      expect(res.body.data.order.payment_status).toBe('partially_paid');
+      expect(parseFloat(res.body.data.order.amount_paid)).toBe(40);
+      expect(parseFloat(res.body.data.order.balance)).toBe(60);
+
+      const row = await Payment.findOne({ where: { externalref: res.body.data.payment.externalref } });
+      expect(row).toBeTruthy();
+      expect(row.payment_method).toBe('cash');
+    });
+
+    it('rejects overpay and denies client', async () => {
+      const service = await createService(ctx.admin, { price: 20 });
+      const cashOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        quantity: 1,
+        unit_price: 20,
+      });
+
+      const overpay = await request(app)
+        .post('/api/payments/cash/')
+        .set(tokens.admin.headers)
+        .send({
+          order_id: cashOrder.id,
+          amount: 999,
+          paid_at: '2026-08-03T10:00:00.000Z',
+        });
+      expect(overpay.status).toBe(400);
+      expect(overpay.body.error_code).toBe('AMOUNT_EXCEEDS_BALANCE');
+
+      const clientRes = await request(app)
+        .post('/api/payments/cash/')
+        .set(tokens.client.headers)
+        .send({
+          order_id: cashOrder.id,
+          amount: 5,
+          paid_at: '2026-08-03T10:00:00.000Z',
+        });
+      expect(clientRes.status).toBe(403);
+    });
+  });
+
   describe('POST /api/payments/moolre/webhook/', () => {
     it('marks payment paid after Moolre status API confirms txstatus 1', async () => {
       const payment = await Payment.create({

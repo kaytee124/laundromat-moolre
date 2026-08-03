@@ -19,7 +19,7 @@ Related docs:
 | Area | What changed | Frontend action |
 |------|----------------|-----------------|
 | Orders | Responses include `balance` | Show remaining balance from API on list + detail |
-| Staff create customer | Welcome SMS sent after successful create | Show username + `default_password`; tell staff the customer also gets SMS |
+| Staff create customer | Welcome SMS with magic link + password | Do **not** expect `default_password` in the API; tell staff the client got SMS |
 | Public register | Unchanged (no default-password SMS) | Do not show temporary-password / welcome-SMS UI |
 
 ---
@@ -86,15 +86,14 @@ Staff / employee only. Public self-register is a different route and does **not*
 
 ```json
 {
-  "message": "Customer created successfully with default password",
+  "message": "Customer created successfully. Login credentials were sent by SMS.",
   "user": { "id": 1, "username": "client_jane", "role": "client" },
   "customer": { "id": 12 },
-  "default_password": "TempPass123!",
-  "note": "Customer must change password on first login"
+  "note": "Customer must change password on first login. Default password is not returned in this response."
 }
 ```
 
-(Exact `default_password` value comes from server env `DEFAULT_CUSTOMER_PASSWORD`.)
+Credentials (`Kolendo@{username}` + magic link) are sent by SMS only — staff UI must not expect `default_password` on client create.
 
 ### Server side effect (no FE call)
 
@@ -136,7 +135,7 @@ The customer chooses their own password. There is **no** default-password welcom
 
 ## 3. What the frontend does not configure
 
-- No frontend env for `CUSTOMER_APP_URL`, Moolre SMS keys, or `DEFAULT_CUSTOMER_PASSWORD`.
+- No frontend env for `CUSTOMER_APP_URL` / Moolre SMS keys. Default passwords are `Kolendo@{username}` from the create response (not a shared FE constant).
 - No public “send SMS” API route — welcome and order SMS are server side effects only.
 - Do not hardcode the customer app host in the staff UI for SMS; the SMS body is built on the server. You may still deep-link your own SPA routes for in-app navigation.
 
@@ -147,5 +146,5 @@ The customer chooses their own password. There is **no** default-password welcom
 - [ ] Show `balance` on order list rows and detail / sheet summary next to total and paid.
 - [ ] Treat `total_amount`, `amount_paid`, and `balance` as strings from the API.
 - [ ] After successful payment (or staff payment update), refetch the order so `balance` updates.
-- [ ] On staff create-customer success: surface username + `default_password`, and note that the customer also receives an SMS with the app link and credentials.
+- [ ] On staff create-customer success: confirm credentials were sent by SMS; do **not** look for `default_password` in the response.
 - [ ] Keep public register unchanged — no temporary password / welcome SMS messaging.

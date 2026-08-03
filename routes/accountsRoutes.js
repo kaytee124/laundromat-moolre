@@ -12,11 +12,17 @@ const {
   isStaff,
   requireSuperadminCreationAccess,
 } = require('../middleware/permissions');
+const { welcomeLoginRateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
 router.get('/csrf/', asyncHandler(issueCsrfToken));
 router.post('/login/', asyncHandler(accountsController.login));
+router.post(
+  '/welcome-login/',
+  welcomeLoginRateLimit,
+  asyncHandler(accountsController.welcomeLogin)
+);
 router.post('/logout/', authenticate, asyncHandler(accountsController.logout));
 router.post('/token/refresh/', asyncHandler(accountsController.refreshToken));
 router.post('/token/verify/', asyncHandler(verifyTokenHandler));
