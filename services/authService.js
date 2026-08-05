@@ -97,10 +97,8 @@ async function login(username, password) {
   await user.save();
 
   const tokens = await issueTokens(user);
-  const requiresPasswordChange = await comparePassword(
-    buildDefaultPassword(user.username),
-    user.password_hash
-  );
+  // Temporarily always false so portals can skip forced change-password UI until FE is ready.
+  const requiresPasswordChange = false;
 
   return { user, tokens, requiresPasswordChange };
 }
@@ -121,10 +119,8 @@ async function loginWithWelcomeToken(rawToken) {
   await user.save();
 
   const tokens = await issueTokens(user);
-  const requiresPasswordChange = await comparePassword(
-    buildDefaultPassword(user.username),
-    user.password_hash
-  );
+  // Temporarily always false so portals can skip forced change-password UI until FE is ready.
+  const requiresPasswordChange = false;
 
   return { user, tokens, requiresPasswordChange };
 }

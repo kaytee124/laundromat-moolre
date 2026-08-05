@@ -600,7 +600,7 @@ const spec = {
         description:
           'Exchanges a welcome/portal token (from SMS `{CUSTOMER_APP_URL}/welcome?token=…`, optional `next` for deep link) for a normal session. ' +
           'Token is reusable until expiry (default 30 days via `WELCOME_LOGIN_TOKEN_TTL_HOURS`). Requires CSRF. Rate-limited per IP. ' +
-          'Response matches login, including `requires_password_change` when still on the default password.',
+          '`requires_password_change` is currently always `false` (forced change-password UI deferred until frontend is ready).',
         security: csrfOnly,
         requestBody: {
           required: true,
@@ -612,8 +612,7 @@ const spec = {
           200: jsonResponse('Welcome login successful', '#/components/schemas/LoginResponse', {
             access: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example',
             user: EXAMPLE_USER,
-            requires_password_change: true,
-            message: 'Please change your default password',
+            requires_password_change: false,
           }),
           400: errorResponse(400, 'Missing token', 'MISSING_FIELDS'),
           401: errorResponse(401, 'Invalid or expired welcome link', 'INVALID_TOKEN'),

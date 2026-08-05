@@ -220,7 +220,7 @@
           "Accounts"
         ],
         "summary": "Welcome / portal magic-link login",
-        "description": "**Required auth:** CSRF only — reusable welcome/portal token from SMS magic link (valid until expiry). Rate-limited per IP.\n\nExchanges a welcome/portal token (from SMS `{CUSTOMER_APP_URL}/welcome?token=…`, optional `next` for deep link) for a normal session. Token is reusable until expiry (default 30 days via `WELCOME_LOGIN_TOKEN_TTL_HOURS`). Requires CSRF. Rate-limited per IP. Response matches login, including `requires_password_change` when still on the default password.",
+        "description": "**Required auth:** CSRF only — reusable welcome/portal token from SMS magic link (valid until expiry). Rate-limited per IP.\n\nExchanges a welcome/portal token (from SMS `{CUSTOMER_APP_URL}/welcome?token=…`, optional `next` for deep link) for a normal session. Token is reusable until expiry (default 30 days via `WELCOME_LOGIN_TOKEN_TTL_HOURS`). Requires CSRF. Rate-limited per IP. `requires_password_change` is currently always `false` (forced change-password UI deferred until frontend is ready).",
         "security": [
           {
             "csrfHeader": []
@@ -263,8 +263,7 @@
                     "updated_at": "2026-07-20T12:00:00.000Z",
                     "updated_by": null
                   },
-                  "requires_password_change": true,
-                  "message": "Please change your default password"
+                  "requires_password_change": false
                 }
               }
             }

@@ -22,7 +22,7 @@ describe('Accounts API', () => {
       expect(res.body.user.username).toBe(ctx.client.username);
     });
 
-    it('returns requires_password_change for default staff password', async () => {
+    it('returns requires_password_change false even for default staff password', async () => {
       const { buildDefaultPassword } = require('../../utils/passwords');
       const { hashPassword } = require('../../services/authService');
       const username = uniqueUsername('defpass');
@@ -41,7 +41,7 @@ describe('Accounts API', () => {
       });
       const res = await login(username, defaultPassword);
       expect(res.status).toBe(200);
-      expect(res.body.requires_password_change).toBe(true);
+      expect(res.body.requires_password_change).toBe(false);
     });
 
     it('rejects missing fields', async () => {

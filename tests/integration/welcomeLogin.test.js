@@ -77,7 +77,7 @@ describe('Welcome magic-link login', () => {
     expect(loginRes.status).toBe(200);
     expect(loginRes.body.access).toBeDefined();
     expect(loginRes.body.user.role).toBe('client');
-    expect(loginRes.body.requires_password_change).toBe(true);
+    expect(loginRes.body.requires_password_change).toBe(false);
 
     await stored.reload();
     expect(stored.used_at).toBeNull();
