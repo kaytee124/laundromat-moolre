@@ -24,6 +24,7 @@ const OrderStatusHistory = require('./OrderStatusHistory')(sequelize);
 const UssdSession = require('./UssdSession')(sequelize);
 const WelcomeLoginToken = require('./WelcomeLoginToken')(sequelize);
 const SmsOutbox = require('./SmsOutbox')(sequelize);
+const AddonCatalogItem = require('./AddonCatalogItem')(sequelize);
 
 // User self-reference
 User.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
@@ -90,4 +91,5 @@ module.exports = {
   UssdSession,
   WelcomeLoginToken,
   SmsOutbox,
+  AddonCatalogItem,
 };

@@ -4,7 +4,8 @@ This document describes frontend order-sheet changes so the Bubblebytes API / ba
 
 The order create/update contract is **unchanged** (`order_items_data` with free-text `item_name`). What changed is the **set of `item_name` values** the UI now sends and expects to round-trip on list/detail.
 
-Related: [frontend-order-sheet-changes.md](./frontend-order-sheet-changes.md) (sheet shape, `service_ids`, dirty/clean quantities).
+Related: [frontend-order-sheet-changes.md](./frontend-order-sheet-changes.md) (sheet shape, `service_ids`, dirty/clean quantities).  
+Add-on checkbox source of truth is now the shared catalog API — see [frontend-addon-catalog.md](./frontend-addon-catalog.md).
 
 ---
 
@@ -77,7 +78,9 @@ Rules (same as existing sheet migration):
 
 Staff enable these via checkboxes; each checked add-on with quantity becomes a normal line item. There is **no** `is_addon` flag in the API.
 
-Exact strings the frontend sends as `item_name`:
+**Preferred:** load checkbox options from `GET /api/addon-catalog/list/` (see [frontend-addon-catalog.md](./frontend-addon-catalog.md)). Seeded defaults match the names below.
+
+Exact strings historically / initially seeded as `item_name`:
 
 | Category | `item_name` |
 |----------|-------------|
@@ -86,7 +89,7 @@ Exact strings the frontend sends as `item_name`:
 | Garments | `SMOCK`, `JALABIA`, `NIGHTWEAR`, `KAFTAN` |
 | Specialty | `KENTE CLOTH`, `KENTE SLIT AND KABA` |
 
-**Do not** invent alternate spellings (`SMOK`, `JALABIYA`, etc.) in seeds or validators unless you also update the frontend constants. Matching is exact (after trim / upper on the FE for display keys).
+**Do not** invent alternate spellings (`SMOK`, `JALABIYA`, etc.) when creating catalog rows unless the frontend will send the same string. Matching is exact (after trim on the FE for display keys).
 
 ---
 
@@ -159,17 +162,14 @@ Exact strings the frontend sends as `item_name`:
 - [x] List/detail return `order_items[].item_name` unchanged for add-on rows
 - [x] Migrate historical `TOPS` → `SHIRTS`
 - [x] Seed sample sheet orders include an add-on line (`KENTE CLOTH`)
+- [x] Shared add-on catalog CRUD (`/api/addon-catalog/`) — order create unchanged
 - [x] Smoke-test: create with `SHIRTS` + add-on → list → detail → update quantities → totals/balance
 
 ---
 
 ## 7. Frontend source of truth
 
-Item catalogs live in:
+- Core sheet rows: local constants in `src/components/dashboard/orderSheetData.js` (`ITEM_ROWS`)
+- Add-on checkboxes: **shared catalog** via `/api/addon-catalog/` — see [frontend-addon-catalog.md](./frontend-addon-catalog.md)
 
-`src/components/dashboard/orderSheetData.js`
-
-- `ITEM_ROWS` — core sheet rows  
-- `ADDON_ITEM_ROWS` — add-on catalog  
-
-If the business renames an add-on, update that file **and** any backend allowlists / seeds together.
+If the business renames an add-on, update the catalog (admin UI / API). Prefer soft-deactivate over deleting names that already appear on historical orders.

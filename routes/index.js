@@ -6,6 +6,7 @@ const ordersRoutes = require('./ordersRoutes');
 const paymentsRoutes = require('./paymentsRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 const ussdRoutes = require('./ussdRoutes');
+const addonCatalogRoutes = require('./addonCatalogRoutes');
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use('/orders', ordersRoutes);
 router.use('/payments', paymentsRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/ussd', ussdRoutes);
+router.use('/addon-catalog', addonCatalogRoutes);
 
 module.exports = router;

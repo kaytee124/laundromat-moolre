@@ -25,6 +25,9 @@
       "name": "Services"
     },
     {
+      "name": "Addon Catalog"
+    },
+    {
       "name": "Orders"
     },
     {
@@ -3749,6 +3752,465 @@
           }
         },
         "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
+      }
+    },
+    "/api/addon-catalog/list/": {
+      "get": {
+        "tags": [
+          "Addon Catalog"
+        ],
+        "summary": "List add-on catalog items (staff)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "include_inactive",
+            "in": "query",
+            "description": "Pass 1 or true to include deactivated add-ons (managers)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true",
+                "0",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Add-on catalog list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonCatalogListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "count": 1,
+                    "results": [
+                      {
+                        "id": 1,
+                        "name": "SINGLETS",
+                        "category": "Undergarments",
+                        "is_active": true,
+                        "sort_order": 10,
+                        "created_at": "2026-08-07T12:00:00.000Z",
+                        "updated_at": "2026-08-07T12:00:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: staff (admin, employee, or superadmin). Default list is active-only."
+      }
+    },
+    "/api/addon-catalog/create/": {
+      "post": {
+        "tags": [
+          "Addon Catalog"
+        ],
+        "summary": "Create add-on catalog item (admin or superadmin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddonCatalogCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Add-on created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonCatalogMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Add-on created successfully",
+                  "data": {
+                    "id": 1,
+                    "name": "SINGLETS",
+                    "category": "Undergarments",
+                    "is_active": true,
+                    "sort_order": 10,
+                    "created_at": "2026-08-07T12:00:00.000Z",
+                    "updated_at": "2026-08-07T12:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "ADDON_EXISTS": {
+                    "value": {
+                      "error_code": "ADDON_EXISTS",
+                      "message": "Add-on name already exists",
+                      "status_code": 409
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: admin or superadmin. Name must be unique (case-sensitive exact match)."
+      }
+    },
+    "/api/addon-catalog/{id}/": {
+      "patch": {
+        "tags": [
+          "Addon Catalog"
+        ],
+        "summary": "Update add-on catalog item",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddonCatalogUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Add-on updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonCatalogMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Add-on updated successfully",
+                  "data": {
+                    "id": 1,
+                    "name": "SINGLETS",
+                    "category": "Undergarments",
+                    "is_active": true,
+                    "sort_order": 10,
+                    "created_at": "2026-08-07T12:00:00.000Z",
+                    "updated_at": "2026-08-07T12:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "Add-on not found",
+                      "status_code": 404
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "ADDON_EXISTS": {
+                    "value": {
+                      "error_code": "ADDON_EXISTS",
+                      "message": "Add-on name already exists",
+                      "status_code": 409
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: admin or superadmin."
+      },
+      "delete": {
+        "tags": [
+          "Addon Catalog"
+        ],
+        "summary": "Soft-delete add-on (set is_active=false)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Add-on deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonCatalogMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Add-on deactivated successfully",
+                  "data": {
+                    "id": 1,
+                    "name": "SINGLETS",
+                    "category": "Undergarments",
+                    "is_active": false,
+                    "sort_order": 10,
+                    "created_at": "2026-08-07T12:00:00.000Z",
+                    "updated_at": "2026-08-07T12:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "Add-on not found",
+                      "status_code": 404
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: admin or superadmin. Soft-delete only — historical order lines keep the item_name string."
       }
     },
     "/api/orders/list/": {
@@ -8025,6 +8487,116 @@
                 "total_amount": 500
               }
             ]
+          }
+        }
+      },
+      "AddonCatalogItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "example": "SINGLETS"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Undergarments"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AddonCatalogListResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AddonCatalogItem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AddonCatalogCreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exact item_name string used on order lines"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_active": {
+            "type": "boolean",
+            "default": true
+          },
+          "sort_order": {
+            "type": "integer",
+            "default": 0
+          }
+        }
+      },
+      "AddonCatalogUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          }
+        }
+      },
+      "AddonCatalogMutationResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AddonCatalogItem"
           }
         }
       }

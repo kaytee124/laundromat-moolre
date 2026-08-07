@@ -32,12 +32,14 @@ process.env.WELCOME_LOGIN_RATE_LIMIT_WINDOW_MS =
 const { sequelize } = require('../models');
 const { truncateAll, closeDb } = require('./helpers/db');
 const { seedBaseline } = require('./helpers/seed');
+const { seedAddonCatalogDefaults } = require('../lib/seedAddonCatalog');
 const { printSecurityNotes } = require('./reportSummary');
 
 beforeAll(async () => {
   await sequelize.authenticate();
   await truncateAll();
   global.testContext = await seedBaseline();
+  await seedAddonCatalogDefaults();
 });
 
 afterAll(async () => {
