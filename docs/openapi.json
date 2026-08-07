@@ -3896,7 +3896,7 @@
                         "order_items": [
                           {
                             "id": 1,
-                            "item_name": "TOPS",
+                            "item_name": "SHIRTS",
                             "dirty_quantity": 5,
                             "clean_quantity": 0,
                             "unit_price": "12.50",
@@ -4010,7 +4010,7 @@
                 "discount_amount": 0,
                 "order_items_data": [
                   {
-                    "item_name": "TOPS",
+                    "item_name": "SHIRTS",
                     "dirty_quantity": 5,
                     "clean_quantity": 0,
                     "unit_price": 12.5,
@@ -4091,7 +4091,7 @@
                     "order_items": [
                       {
                         "id": 1,
-                        "item_name": "TOPS",
+                        "item_name": "SHIRTS",
                         "dirty_quantity": 5,
                         "clean_quantity": 0,
                         "unit_price": "12.50",
@@ -4288,7 +4288,7 @@
                     "order_items": [
                       {
                         "id": 1,
-                        "item_name": "TOPS",
+                        "item_name": "SHIRTS",
                         "dirty_quantity": 5,
                         "clean_quantity": 0,
                         "unit_price": "12.50",
@@ -4485,7 +4485,7 @@
                     "order_items": [
                       {
                         "id": 1,
-                        "item_name": "TOPS",
+                        "item_name": "SHIRTS",
                         "dirty_quantity": 5,
                         "clean_quantity": 0,
                         "unit_price": "12.50",
@@ -7125,7 +7125,7 @@
               "properties": {
                 "item_name": {
                   "type": "string",
-                  "example": "TOPS"
+                  "example": "SHIRTS"
                 },
                 "dirty_quantity": {
                   "type": "integer",
@@ -7292,7 +7292,7 @@
             "order_items": [
               {
                 "id": 1,
-                "item_name": "TOPS",
+                "item_name": "SHIRTS",
                 "dirty_quantity": 5,
                 "clean_quantity": 0,
                 "unit_price": "12.50",

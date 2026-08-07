@@ -41,7 +41,7 @@ describe('Security: Mass assignment', () => {
         payment_status: 'paid',
         service_ids: [service.id],
         order_items_data: [
-          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
+          { item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
         ],
       });
 
@@ -79,7 +79,7 @@ describe('Security: Mass assignment', () => {
         customer_id: ctx.customer.id,
         service_ids: [service.id],
         order_items_data: [
-          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
+          { item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: service.price },
         ],
       });
     const orderId = createRes.body.data.id;

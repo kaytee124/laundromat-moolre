@@ -5,7 +5,6 @@ const { sequelize } = require('./models');
 const { runPendingMigrations, shouldRunMigrationsOnStart } = require('./lib/runMigrations');
 const { startPaymentReconciliation } = require('./jobs/paymentReconciliation');
 const { startSmsOutboxWorker } = require('./jobs/smsOutboxWorker');
-const { ensurePostmanCustomer } = require('./lib/seedPostmanCustomer');
 const { backfillOrderSheet } = require('./lib/backfillOrderSheet');
 const { seedSampleOrders } = require('./lib/seedSampleOrders');
 
@@ -29,10 +28,6 @@ async function start() {
     if (shouldSeedOrderSheetOnStart()) {
       await backfillOrderSheet();
       await seedSampleOrders();
-    }
-
-    if (NODE_ENV === 'development') {
-      await ensurePostmanCustomer();
     }
 
     if (NODE_ENV !== 'test') {

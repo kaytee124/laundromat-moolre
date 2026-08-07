@@ -32,7 +32,7 @@ describe('Order create phone_needs_correction gate', () => {
         customer_id: ctx.customer.id,
         service_ids: [service.id],
         order_items_data: [
-          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 },
+          { item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 },
         ],
       });
 
@@ -62,7 +62,7 @@ describe('Order create phone_needs_correction gate', () => {
         customer_id: ctx.customer.id,
         service_ids: [service.id],
         order_items_data: [
-          { item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 },
+          { item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 },
         ],
       });
     expect(createRes.status).toBe(201);

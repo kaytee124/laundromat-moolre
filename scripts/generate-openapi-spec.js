@@ -155,7 +155,7 @@ const EXAMPLE_ORDER = {
   order_items: [
     {
       id: 1,
-      item_name: 'TOPS',
+      item_name: 'SHIRTS',
       dirty_quantity: 5,
       clean_quantity: 0,
       unit_price: '12.50',
@@ -2032,7 +2032,7 @@ const spec = {
               type: 'object',
               required: ['item_name', 'unit_price'],
               properties: {
-                item_name: { type: 'string', example: 'TOPS' },
+                item_name: { type: 'string', example: 'SHIRTS' },
                 dirty_quantity: { type: 'integer', minimum: 0 },
                 clean_quantity: { type: 'integer', minimum: 0 },
                 unit_price: { type: 'number' },
@@ -2778,7 +2778,7 @@ function applyDocumentation(openApiSpec) {
       delivery_time: '14:30',
       discount_amount: 0,
       order_items_data: [
-        { item_name: 'TOPS', dirty_quantity: 5, clean_quantity: 0, unit_price: 12.5, notes: '' },
+        { item_name: 'SHIRTS', dirty_quantity: 5, clean_quantity: 0, unit_price: 12.5, notes: '' },
         { item_name: 'BOTTOMS', dirty_quantity: 0, clean_quantity: 4, unit_price: 8, notes: 'press only' },
       ],
     },

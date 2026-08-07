@@ -73,7 +73,7 @@ describe('Orders API', () => {
           delivery_time: '14:30',
           order_items_data: [
             {
-              item_name: 'TOPS',
+              item_name: 'SHIRTS',
               dirty_quantity: 5,
               clean_quantity: 0,
               unit_price: 12.5,
@@ -108,7 +108,7 @@ describe('Orders API', () => {
         .send({
           customer_id: ctx.customer.id,
           service_ids: [service.id],
-          order_items_data: [{ item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 }],
+          order_items_data: [{ item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 }],
         });
       expect(res.status).toBe(403);
     });
@@ -128,7 +128,7 @@ describe('Orders API', () => {
         .send({
           customer_id: ctx.customer.id,
           service_ids: [],
-          order_items_data: [{ item_name: 'TOPS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 }],
+          order_items_data: [{ item_name: 'SHIRTS', dirty_quantity: 1, clean_quantity: 0, unit_price: 10 }],
         });
       expect(res.status).toBe(400);
     });

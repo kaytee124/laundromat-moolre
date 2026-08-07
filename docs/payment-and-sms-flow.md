@@ -226,14 +226,20 @@ sequenceDiagram
 
 ## Postman quick reference
 
-Development seed (when `NODE_ENV=development` on `npm start`):
+Postman auto-seed on server start has been **removed** (not used in production).
 
-| Field | Value |
+For local payment testing only, you can still run:
+
+```bash
+node scripts/recreatePostmanClient.js
+```
+
+| Field | Value (if recreated locally) |
 |-------|--------|
 | Username | `postman_client` |
-| Password | `Postman123!` |
+| Password | `Kolendo@postman_client` (welcome SMS includes magic link + this password) |
 | Phone | `0502412618` |
-| Order ID | `2` |
+| Order ID | `2` (only if that order still exists) |
 | Sample amount | `0.50` or `3.00` (for 30% test on a GHS 10 order) |
 
 **Request chain:**

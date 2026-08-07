@@ -4,6 +4,8 @@ This document describes how the React Order Management UI should change to match
 
 The backend is the source of truth. Prefer server totals and IDs over client-only calculations when conflicting.
 
+Add-on item names (`SHIRTS` rename, specialty lines): see [frontend-order-sheet-addons.md](./frontend-order-sheet-addons.md).
+
 ## Local data (server start)
 
 In `development`, or when `SEED_ORDER_SHEET_ON_START=true`, the API on startup:
@@ -93,7 +95,7 @@ Columns on the sheet:
 
 | UI column | API field |
 |-----------|-----------|
-| ITEM | `item_name` (e.g. `TOPS`, `BOTTOMS`, `SOCKS`, …) |
+| ITEM | `item_name` (e.g. `SHIRTS`, `BOTTOMS`, `SOCKS`, …; see [frontend-order-sheet-addons.md](./frontend-order-sheet-addons.md) for add-ons) |
 | NUMBER OF DIRTY ITEMS | `dirty_quantity` |
 | NUMBER OF CLEANED ITEMS | `clean_quantity` |
 | Unit price (add this column) | `unit_price` — **manual entry**, not from service price |
@@ -166,7 +168,7 @@ On **Update Order**, add a control for pickup:
   "payment_status": "pending",
   "order_items_data": [
     {
-      "item_name": "TOPS",
+      "item_name": "SHIRTS",
       "dirty_quantity": 5,
       "clean_quantity": 0,
       "unit_price": 12.5,

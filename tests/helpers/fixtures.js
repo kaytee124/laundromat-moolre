@@ -69,7 +69,7 @@ async function createOrder(employee, customer, service, overrides = {}) {
   await OrderItem.create({
     order_id: order.id,
     service_id: null,
-    item_name: overrides.item_name || 'TOPS',
+    item_name: overrides.item_name || 'SHIRTS',
     description: overrides.description || null,
     dirty_quantity: dirty,
     clean_quantity: clean,

@@ -108,7 +108,7 @@ describe('Order SMS notifications', () => {
           service_ids: [service.id],
           order_items_data: [
             {
-              item_name: 'TOPS',
+              item_name: 'SHIRTS',
               dirty_quantity: 1,
               clean_quantity: 0,
               unit_price: 10,
@@ -134,7 +134,7 @@ describe('Order SMS notifications', () => {
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/pay/i);
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/portal/i);
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/Total: GHS/i);
-      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/TOPS/i);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/SHIRTS/i);
     });
   });
 
