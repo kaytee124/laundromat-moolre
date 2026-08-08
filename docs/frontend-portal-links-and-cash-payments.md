@@ -60,14 +60,16 @@ Authorization: Bearer <staff access JWT>
 - Roles: `admin`, `employee`, `superadmin` only (clients get 403).
 - `paid_at` is required (ISO date/datetime).
 - Accepting staff is the JWT user (`created_by` on the Payment row).
-- Success `201` returns payment + updated order fields including `amount_paid`, `balance`, `payment_status`.
+- Success `201` returns payment + updated order fields including `amount_paid`, `balance`, `payment_status` (`pending` | `partially_paid` | `paid`).
 - Overpay → `400` `AMOUNT_EXCEEDS_BALANCE`.
+- Server also SMS the customer and every active superadmin with a payment receipt (cash and MoMo).
 
 UI checklist:
 
 - [ ] Staff form: select order, enter amount, pick/enter payment date
-- [ ] On success, update list/detail with returned `balance` / `amount_paid` / `payment_status`
+- [ ] On success, update list/detail with returned `balance` / `amount_paid` / `payment_status` (treat `partially_paid` as partial)
 - [ ] Show who recorded cash from staff session (no separate acceptor field to send)
+- [ ] Do **not** send `payment_status` on order create/update — it is computed from payments
 
 ---
 

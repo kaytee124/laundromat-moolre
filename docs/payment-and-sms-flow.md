@@ -6,9 +6,19 @@ This document describes the end-to-end path from a client paying for an order th
 
 | Flow | Auth | Payment init | SMS triggers |
 |------|------|--------------|--------------|
-| **Web client** | CSRF + JWT (`client` role) | `POST /api/payments/initialize/` | After Moolre confirms payment (≥30% → `in_progress`) and when staff marks `completed` |
-| **USSD** | None (phone lookup) | `POST /api/ussd/payments/initialize/` | Same post-payment behavior as web |
-| **Cash (staff)** | JWT (`admin` / `employee` / `superadmin`) | `POST /api/payments/cash/` | Same ≥30% → `in_progress` SMS when threshold met |
+| **Web client** | CSRF + JWT (`client` role) | `POST /api/payments/initialize/` | Receipt SMS on confirm; ≥30% → `in_progress`; staff `completed` |
+| **USSD** | None (phone lookup) | `POST /api/ussd/payments/initialize/` | Same as web after confirm |
+| **Cash (staff)** | JWT (`admin` / `employee` / `superadmin`) | `POST /api/payments/cash/` | Receipt SMS immediately; ≥30% → `in_progress` when threshold met |
+
+### Payment status
+
+Order `payment_status` is **server-computed** from paid Payment rows (not settable on create/update):
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | `amount_paid` is 0 |
+| `partially_paid` | Some paid, but balance remains (show as “partial” in the UI) |
+| `paid` | Fully paid |
 
 ### Staff cash payment
 
@@ -24,6 +34,20 @@ Authorization: Bearer <staff access>
 ```
 
 Creates a **paid** Payment row (`payment_method: cash`) with `created_by` = accepting staff and the given `paid_at`, then syncs order `amount_paid` / `payment_status` / `balance`.
+
+**Receipt SMS (every successful cash or confirmed MoMo payment):**
+- Customer (`Customer.phone_number`) — amount just paid, method, paid-to-date, balance, status
+- Every active **superadmin** with `User.phone_number` — same summary for ops
+
+Existing status SMS (≥30% → `in_progress`, completed, schedule, pickup) is unchanged.
+
+### Due reminders (delivery)
+
+A background job (every **5 minutes**) SMS-reminds when an order’s **delivery** is approaching:
+
+- **24 hours** and **1 hour** before `delivery_date` + `delivery_time` (Accra; default time `09:00` if time is null)
+- Recipients: customer, assigned worker (or all employees if unassigned), and all active superadmins
+- Skips completed / cancelled / picked-up orders; each window is sent once (`reminder_24h_sent_at` / `reminder_1h_sent_at`)
 
 Swagger UI at `/api/docs` documents these endpoints and notes SMS as side effects on payment and order-update operations.
 

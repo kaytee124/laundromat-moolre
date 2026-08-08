@@ -7,6 +7,7 @@ const moolreService = require('./moolreService');
 const moolreConfig = require('../config/moolre');
 const orderService = require('./orderService');
 const orderNotificationService = require('./orderNotificationService');
+const paymentNotificationService = require('./paymentNotificationService');
 const { mapUssdNetworkToChannel } = require('../utils/moolreNetwork');
 const { formatMoolrePaymentPayer } = require('../utils/phone');
 
@@ -62,6 +63,7 @@ async function applyMoolreStatus(payment, data, source) {
   }
 
   let orderStatusTransition = null;
+  let paymentBecamePaid = false;
 
   await sequelize.transaction(async (t) => {
     if (data.transactionid) payment.transaction_id = String(data.transactionid);
@@ -79,6 +81,7 @@ async function applyMoolreStatus(payment, data, source) {
       payment.paid_at = data.ts ? new Date(data.ts) : now;
       await payment.save({ transaction: t });
       const syncResult = await orderService.syncOrderPaymentStatus(payment.order_id, t);
+      paymentBecamePaid = previousStatus !== 'paid';
       orderStatusTransition = {
         orderId: payment.order_id,
         previousStatus: syncResult.previousOrderStatus,
@@ -89,6 +92,21 @@ async function applyMoolreStatus(payment, data, source) {
       await payment.save({ transaction: t });
     }
   });
+
+  if (paymentBecamePaid) {
+    try {
+      await paymentNotificationService.notifyPaymentReceived(payment.order_id, payment.id);
+    } catch (err) {
+      console.error(
+        JSON.stringify({
+          event: 'payment_notification_error',
+          orderId: payment.order_id,
+          paymentId: payment.id,
+          error: err.message,
+        })
+      );
+    }
+  }
 
   if (orderStatusTransition && orderStatusTransition.previousStatus !== orderStatusTransition.newStatus) {
     orderNotificationService
@@ -227,6 +245,19 @@ async function recordCashPayment(staffUser, { order_id, amount, paid_at }) {
           })
         );
       });
+  }
+
+  try {
+    await paymentNotificationService.notifyPaymentReceived(order.id, payment.id);
+  } catch (err) {
+    console.error(
+      JSON.stringify({
+        event: 'payment_notification_error',
+        orderId: order.id,
+        paymentId: payment.id,
+        error: err.message,
+      })
+    );
   }
 
   await payment.reload();

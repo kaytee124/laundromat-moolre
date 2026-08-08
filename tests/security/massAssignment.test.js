@@ -32,7 +32,7 @@ describe('Security: Mass assignment', () => {
     expect(user.is_superuser).toBe(false);
   });
 
-  it('documents payment_status injection on order create', async () => {
+  it('ignores payment_status injection on order create', async () => {
     const res = await request(app)
       .post('/api/orders/create/')
       .set(tokens.employee.headers)
@@ -47,7 +47,8 @@ describe('Security: Mass assignment', () => {
 
     expect(res.status).toBe(201);
     const order = await Order.findByPk(res.body.data.id);
-    expect(order.payment_status).toBe('paid');
+    expect(order.payment_status).toBe('pending');
+    expect(parseFloat(order.amount_paid)).toBe(0);
   });
 
   it('admin cannot create service without name', async () => {
@@ -71,7 +72,7 @@ describe('Security: Mass assignment', () => {
     expect(res.body.error_code).toBe('ROLE_CHANGE_NOT_ALLOWED');
   });
 
-  it('client cannot set payment_status via order update', async () => {
+  it('staff cannot set payment_status via order update', async () => {
     const createRes = await request(app)
       .post('/api/orders/create/')
       .set(tokens.employee.headers)
@@ -91,6 +92,7 @@ describe('Security: Mass assignment', () => {
 
     expect(res.status).toBe(200);
     const order = await Order.findByPk(orderId);
+    expect(order.payment_status).toBe('pending');
     expect(parseFloat(order.amount_paid)).not.toBe(9999);
   });
 });

@@ -5225,7 +5225,7 @@
           "Payments"
         ],
         "summary": "Record cash payment (staff)",
-        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff records a cash payment against an order. Creates a paid Payment row (`payment_method: cash`) with amount, `paid_at`, and `created_by` = accepting staff. Syncs order `amount_paid` / `payment_status` / optional auto-`in_progress` SMS.",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nStaff records a cash payment against an order. Creates a paid Payment row (`payment_method: cash`) with amount, `paid_at`, and `created_by` = accepting staff. Syncs order `amount_paid` / `payment_status` / optional auto-`in_progress` SMS.\n\nSide effects: syncs payment_status (pending|partially_paid|paid); SMS receipt to customer and all active superadmins; may auto in_progress + SMS at >=30% paid.",
         "security": [
           {
             "bearerAuth": []
@@ -5370,7 +5370,7 @@
           "Payments"
         ],
         "summary": "Moolre payment webhook",
-        "description": "**Required auth:** None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)\n\nWebhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard. After a paid confirmation, updates order `amount_paid` / `payment_status`; if paid total ≥30% while order is `pending`, auto-sets `in_progress` and sends customer SMS asynchronously.",
+        "description": "**Required auth:** None (Moolre payment webhook; validates data.secret, then confirms via Payment Status API)\n\nWebhook trigger only — validates `data.secret`, then confirms payment via Moolre Payment Status API (idtype 1). Does not trust webhook `txstatus`. Rate-limited per IP. Configure `MOOLRE_WEBHOOK_URL` to this path in Moolre dashboard. After a paid confirmation, updates order `amount_paid` / `payment_status`; if paid total ≥30% while order is `pending`, auto-sets `in_progress` and sends customer SMS asynchronously.\n\nSide effects on paid confirm: syncs payment_status; SMS receipt to customer and all active superadmins; may auto in_progress + SMS at >=30% paid.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7381,7 +7381,13 @@
             "type": "string"
           },
           "payment_status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "pending",
+              "partially_paid",
+              "paid"
+            ],
+            "description": "Server-computed from paid Payment rows. Use partially_paid for partial payments."
           },
           "total_amount": {
             "type": "string"
@@ -7548,7 +7554,9 @@
             "type": "string"
           },
           "payment_status": {
-            "type": "string"
+            "type": "string",
+            "description": "Ignored — orders always start as pending; status is derived from payments.",
+            "deprecated": true
           },
           "discount_amount": {
             "type": "number"
@@ -7619,9 +7627,6 @@
             "type": "integer"
           },
           "order_status": {
-            "type": "string"
-          },
-          "payment_status": {
             "type": "string"
           },
           "discount_amount": {

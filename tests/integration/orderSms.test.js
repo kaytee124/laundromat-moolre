@@ -168,23 +168,25 @@ describe('Order SMS notifications', () => {
 
       expect(res.status).toBe(200);
 
-      await waitForSpyCalls(sendSmsSpy, 1);
+      // receipt SMS (awaited) + in_progress SMS (async)
+      await waitForSpyCalls(sendSmsSpy, 2);
 
       const updatedOrder = await Order.findByPk(smsOrder.id);
       expect(updatedOrder.order_status).toBe('in_progress');
       expect(parseFloat(updatedOrder.amount_paid)).toBe(3);
 
-      expect(sendSmsSpy).toHaveBeenCalledTimes(1);
+      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
+      expect(messages.some((m) => /Payment of GHS/i.test(m))).toBe(true);
+      expect(messages.some((m) => /in progress/i.test(m))).toBe(true);
       expect(sendSmsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           recipient: formatSmsRecipient(ctx.customer.phone_number),
-          ref: updatedOrder.order_number,
         })
       );
-      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/in progress/i);
     });
 
-    it('does not send duplicate in-progress SMS on further payments', async () => {
+    it('sends payment receipt but not duplicate in-progress SMS on further payments', async () => {
+      sendSmsSpy.mockClear();
       const service = await createService(ctx.admin, { price: 10 });
       const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
         quantity: 1,
@@ -214,8 +216,10 @@ describe('Order SMS notifications', () => {
         .send(buildWebhookPayload(payment.externalref, { amount: '2.00', value: '2.00' }));
 
       expect(res.status).toBe(200);
-      await waitForSpyCalls(sendSmsSpy, 0);
-      expect(sendSmsSpy).not.toHaveBeenCalled();
+      await waitForSpyCalls(sendSmsSpy, 1);
+      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
+      expect(messages.some((m) => /Payment of GHS/i.test(m))).toBe(true);
+      expect(messages.some((m) => /in progress/i.test(m))).toBe(false);
     });
   });
 
@@ -275,7 +279,7 @@ describe('Order SMS notifications', () => {
 
   describe('schedule and pickup SMS', () => {
     async function clearSmsSpy() {
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       sendSmsSpy.mockClear();
     }
 
@@ -286,6 +290,7 @@ describe('Order SMS notifications', () => {
         estimated_completion_date: '2026-07-25',
       });
 
+      sendSmsSpy.mockClear();
       const res = await request(app)
         .put(`/api/orders/${smsOrder.id}/update/`)
         .set(tokens.employee.headers)
@@ -304,6 +309,7 @@ describe('Order SMS notifications', () => {
         estimated_completion_date: '2026-07-20',
       });
 
+      sendSmsSpy.mockClear();
       const res = await request(app)
         .put(`/api/orders/${smsOrder.id}/update/`)
         .set(tokens.employee.headers)
@@ -320,6 +326,7 @@ describe('Order SMS notifications', () => {
       const service = await createService(ctx.admin);
       const smsOrder = await createOrder(ctx.employee, ctx.customer, service);
 
+      sendSmsSpy.mockClear();
       const res = await request(app)
         .put(`/api/orders/${smsOrder.id}/update/`)
         .set(tokens.employee.headers)

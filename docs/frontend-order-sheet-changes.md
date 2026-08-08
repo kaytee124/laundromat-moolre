@@ -8,10 +8,12 @@ Add-on item names (`SHIRTS` rename, specialty lines): see [frontend-order-sheet-
 
 ## Local data (server start)
 
-In `development`, or when `SEED_ORDER_SHEET_ON_START=true`, the API on startup:
+Only when `SEED_ORDER_SHEET_ON_START=true`, the API on startup:
 
 1. **Backfills** legacy orders (adds missing `order_services`, fixes empty item names).
 2. **Seeds** one sample sheet-style order per client customer (`special_instructions: SEED_ORDER_SHEET`) if they do not already have one.
+
+Do **not** enable this against a live/shared database — it creates a pending ₵86 sample order for every client.
 
 ## Accounts / profile (email removed)
 
@@ -136,7 +138,8 @@ Discount remains the existing **Discount (GHS)** control → `discount_amount`.
 | Estimated completion (if shown) | `estimated_completion_date` | Changing it triggers SMS |
 | Pickup date (if still used) | `pickup_date` | Still supported |
 
-Statuses stay as today: `order_status`, `payment_status`, Assign To (`assigned_to`).
+Statuses stay as today: `order_status`, Assign To (`assigned_to`).  
+`payment_status` is **read-only** on the order (`pending` | `partially_paid` | `paid`) — derived from payments; do not PATCH it.
 
 ---
 

@@ -87,7 +87,7 @@ Exact strings historically / initially seeded as `item_name`:
 | Undergarments | `SINGLETS`, `BOXERS`, `UNDERWEAR`, `INNER`, `VEST` |
 | Bedding extras | `BLANKETS`, `PILLOWCASE` |
 | Garments | `SMOCK`, `JALABIA`, `NIGHTWEAR`, `KAFTAN` |
-| Specialty | `KENTE CLOTH`, `KENTE SLIT AND KABA` |
+| Specialty | `KENTE CLOTH`, `KENTE SLIT AND KABA`, `SLIT & KABA`, `SLIT`, `KABA`, `KENTE DRESS`, `JACKET`, `BEADS DRESS`, `SUIT UD`, `SUIT TOP`, `SKIRT & TOP`, `LACE DRESS`, `MEN'S CLOTH`, `SHORTS`, `SKIRTS`, `FACE TOWEL`, `HANDKERCHIEF`, `GRADUATION GOWN` |
 
 **Do not** invent alternate spellings (`SMOK`, `JALABIYA`, etc.) when creating catalog rows unless the frontend will send the same string. Matching is exact (after trim on the FE for display keys).
 

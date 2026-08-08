@@ -5,15 +5,16 @@ const { sequelize } = require('./models');
 const { runPendingMigrations, shouldRunMigrationsOnStart } = require('./lib/runMigrations');
 const { startPaymentReconciliation } = require('./jobs/paymentReconciliation');
 const { startSmsOutboxWorker } = require('./jobs/smsOutboxWorker');
+const { startOrderDueReminderWorker } = require('./jobs/orderDueReminder');
 const { backfillOrderSheet } = require('./lib/backfillOrderSheet');
 const { seedSampleOrders } = require('./lib/seedSampleOrders');
 
 const PORT = requireEnvInt('PORT');
 const NODE_ENV = requireEnv('NODE_ENV');
 
-/** Development always; production only when SEED_ORDER_SHEET_ON_START=true */
+/** Only when SEED_ORDER_SHEET_ON_START=true (never implicit on development). */
 function shouldSeedOrderSheetOnStart() {
-  return NODE_ENV === 'development' || process.env.SEED_ORDER_SHEET_ON_START === 'true';
+  return process.env.SEED_ORDER_SHEET_ON_START === 'true';
 }
 
 async function start() {
@@ -33,6 +34,7 @@ async function start() {
     if (NODE_ENV !== 'test') {
       startPaymentReconciliation();
       startSmsOutboxWorker();
+      startOrderDueReminderWorker();
     }
 
     app.listen(PORT, () => {

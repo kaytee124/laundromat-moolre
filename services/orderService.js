@@ -383,7 +383,7 @@ async function createOrder(data, user) {
           customer_id: customer.id,
           assigned_to: assignedTo || null,
           order_status: data.order_status || 'pending',
-          payment_status: data.payment_status || 'pending',
+          payment_status: 'pending',
           discount_amount: data.discount_amount || 0,
           delivery_notes: data.delivery_notes || null,
           special_instructions: data.special_instructions || null,
@@ -447,7 +447,6 @@ async function updateOrder(orderId, data, user) {
   const allowed = [
     'assigned_to',
     'order_status',
-    'payment_status',
     'discount_amount',
     'delivery_notes',
     'special_instructions',

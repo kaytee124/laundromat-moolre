@@ -23,6 +23,8 @@ module.exports = (sequelize) => {
       completed_at: { type: DataTypes.DATE, allowNull: true },
       picked_up: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       picked_up_at: { type: DataTypes.DATE, allowNull: true },
+      reminder_24h_sent_at: { type: DataTypes.DATE, allowNull: true },
+      reminder_1h_sent_at: { type: DataTypes.DATE, allowNull: true },
       created_by: { type: DataTypes.BIGINT, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
       updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
