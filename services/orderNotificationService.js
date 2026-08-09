@@ -240,6 +240,7 @@ async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
 
   await sendCustomerSms(orderId, message, {
     purpose: isInProgress ? 'order_in_progress' : 'order_completed',
+    ref: `${order.order_number}-${isInProgress ? 'inprog' : 'done'}-${Date.now()}`,
   });
 }
 
@@ -274,7 +275,10 @@ async function notifyEstimatedCompletionChange(orderId, previousDate, newDate) {
       ? buildScheduleEarlierMessage(order.order_number, next)
       : buildScheduleLaterMessage(order.order_number, next);
 
-  await sendCustomerSms(orderId, message, { purpose: 'order_schedule_change' });
+  await sendCustomerSms(orderId, message, {
+    purpose: 'order_schedule_change',
+    ref: `${order.order_number}-sched-${Date.now()}`,
+  });
 }
 
 async function notifyOrderPickedUp(orderId, pickedUpAt) {
@@ -287,6 +291,7 @@ async function notifyOrderPickedUp(orderId, pickedUpAt) {
 
   await sendCustomerSms(orderId, buildPickedUpMessage(order.order_number, pickedUpAt || new Date()), {
     purpose: 'order_picked_up',
+    ref: `${order.order_number}-pickup-${Date.now()}`,
   });
 }
 

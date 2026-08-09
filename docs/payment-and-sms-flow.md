@@ -20,6 +20,8 @@ Order `payment_status` is **server-computed** from paid Payment rows (not settab
 | `partially_paid` | Some paid, but balance remains (show as “partial” in the UI) |
 | `paid` | Fully paid |
 
+Frontend guide: [frontend-partial-payment-status.md](./frontend-partial-payment-status.md).
+
 ### Staff cash payment
 
 ```

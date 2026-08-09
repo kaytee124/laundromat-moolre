@@ -7,6 +7,7 @@ Related docs:
 - [frontend-welcome-magic-login.md](./frontend-welcome-magic-login.md) — detailed welcome-login API contract
 - [payment-and-sms-flow.md](./payment-and-sms-flow.md) — Moolre + cash overview
 - [frontend-balance-and-welcome-sms.md](./frontend-balance-and-welcome-sms.md) — order `balance` field
+- [frontend-partial-payment-status.md](./frontend-partial-payment-status.md) — `partially_paid` status for the UI
 
 ---
 
