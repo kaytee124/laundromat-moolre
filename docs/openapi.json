@@ -38,6 +38,9 @@
     },
     {
       "name": "Dashboard"
+    },
+    {
+      "name": "Reports"
     }
   ],
   "paths": {
@@ -6047,6 +6050,276 @@
         },
         "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
       }
+    },
+    "/api/reports/transactions/": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "List all payment transactions (superadmin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "payment_method",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cash",
+                "moolre",
+                "ussd"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "paid",
+                "pending",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "default": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated transactions (JSON) or CSV download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionListResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — superadmin only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: **superadmin** only. Lists cash, MoMo (moolre), and USSD payments. Use `format=csv` to download."
+      }
+    },
+    "/api/reports/summary/": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Period summary report (superadmin)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "daily",
+                "monthly",
+                "yearly"
+              ]
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Required for period=daily",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Required for period=monthly or yearly",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "description": "Required for period=monthly (1-12)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 12
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "Custom range start (with end_date)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "default": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary metrics (JSON) or CSV download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSummaryResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "period": {
+                      "mode": "monthly",
+                      "start": "2026-08-01",
+                      "end": "2026-08-31"
+                    },
+                    "new_customers": 12,
+                    "revenue": "4500.00",
+                    "revenue_by_method": {
+                      "cash": "2000.00",
+                      "moolre": "2500.00",
+                      "ussd": "0.00"
+                    },
+                    "transaction_count": 40,
+                    "owed": "890.00",
+                    "orders_with_balance": 7
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — superadmin only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "**Required auth:** Access JWT. Role: **superadmin** only. Returns new customers, revenue, and owed for the selected day/month/year. Use `format=csv` to download."
+      }
     }
   },
   "components": {
@@ -8602,6 +8875,156 @@
           },
           "data": {
             "$ref": "#/components/schemas/AddonCatalogItem"
+          }
+        }
+      },
+      "TransactionListResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TransactionRow"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TransactionRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "externalref": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "payer_phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "integer",
+            "nullable": true
+          },
+          "created_by_username": {
+            "type": "string",
+            "nullable": true
+          },
+          "order_id": {
+            "type": "integer"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "integer"
+          },
+          "customer_username": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_name": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ReportSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "period": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string"
+                  }
+                }
+              },
+              "new_customers": {
+                "type": "integer"
+              },
+              "revenue": {
+                "type": "string"
+              },
+              "revenue_by_method": {
+                "type": "object",
+                "properties": {
+                  "cash": {
+                    "type": "string"
+                  },
+                  "moolre": {
+                    "type": "string"
+                  },
+                  "ussd": {
+                    "type": "string"
+                  }
+                }
+              },
+              "transaction_count": {
+                "type": "integer"
+              },
+              "owed": {
+                "type": "string"
+              },
+              "orders_with_balance": {
+                "type": "integer"
+              }
+            }
           }
         }
       }
