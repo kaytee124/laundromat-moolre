@@ -400,14 +400,14 @@ describe('Accounts API', () => {
       expect(capped.body.page_size).toBe(200);
     });
 
-    it('lists clients alphabetically by username', async () => {
+    it('lists clients alphabetically by name', async () => {
       const { hashPassword } = require('../../services/authService');
-      const laterName = uniqueUsername('zzz_sort');
-      const earlierName = uniqueUsername('aaa_sort');
+      const zedUsername = uniqueUsername('aaa_sort');
+      const annUsername = uniqueUsername('zzz_sort');
       const password_hash = await hashPassword(ctx.passwords.client);
 
       await User.create({
-        username: laterName,
+        username: zedUsername,
         password_hash,
         first_name: 'Zed',
         last_name: 'Sort',
@@ -419,7 +419,7 @@ describe('Accounts API', () => {
         updated_at: new Date(),
       });
       await User.create({
-        username: earlierName,
+        username: annUsername,
         password_hash,
         first_name: 'Ann',
         last_name: 'Sort',
@@ -435,9 +435,12 @@ describe('Accounts API', () => {
         .get('/api/accounts/clients/?page=1&page_size=200')
         .set(tokens.admin.headers);
       expect(res.status).toBe(200);
+      const names = res.body.results.map((c) => `${c.first_name} ${c.last_name}`);
+      expect(names).toEqual(
+        [...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+      );
       const usernames = res.body.results.map((c) => c.username);
-      expect(usernames).toEqual([...usernames].sort((a, b) => a.localeCompare(b)));
-      expect(usernames.indexOf(earlierName)).toBeLessThan(usernames.indexOf(laterName));
+      expect(usernames.indexOf(annUsername)).toBeLessThan(usernames.indexOf(zedUsername));
     });
   });
 
