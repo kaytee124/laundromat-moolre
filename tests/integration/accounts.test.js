@@ -385,6 +385,20 @@ describe('Accounts API', () => {
         .set(tokens.admin.headers);
       expect(res.status).toBe(200);
     });
+
+    it('accepts page_size=200 and caps higher values', async () => {
+      const ok = await request(app)
+        .get('/api/accounts/clients/?page=1&page_size=200')
+        .set(tokens.admin.headers);
+      expect(ok.status).toBe(200);
+      expect(ok.body.page_size).toBe(200);
+
+      const capped = await request(app)
+        .get('/api/accounts/clients/?page=1&page_size=500')
+        .set(tokens.admin.headers);
+      expect(capped.status).toBe(200);
+      expect(capped.body.page_size).toBe(200);
+    });
   });
 
   describe('POST /api/accounts/change-password/', () => {

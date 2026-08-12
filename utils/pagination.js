@@ -2,7 +2,7 @@ function parsePagination(query) {
   let page = parseInt(query.page, 10) || 1;
   let pageSize = parseInt(query.page_size, 10) || 20;
 
-  if (pageSize > 50) pageSize = 50;
+  if (pageSize > 200) pageSize = 200;
   if (pageSize < 1) pageSize = 20;
   if (page < 1) page = 1;
 

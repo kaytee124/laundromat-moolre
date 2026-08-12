@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
+const { createService, createOrder } = require('../helpers/fixtures');
 
 describe('Dashboard API', () => {
   let tokens;
@@ -34,6 +35,32 @@ describe('Dashboard API', () => {
         .set(tokens.employee.headers);
       expect(res.status).toBe(200);
       expect(res.body.data.my_orders).toBeDefined();
+    });
+
+    it('employee my_revenue uses amount_paid not total_amount', async () => {
+      const before = await request(app)
+        .get('/api/dashboard/metrics/')
+        .set(tokens.employee.headers);
+      expect(before.status).toBe(200);
+      const revenueBefore = parseFloat(before.body.data.my_revenue);
+
+      const service = await createService(ctx.employee);
+      await createOrder(ctx.employee, ctx.customer, service, {
+        assigned_to: ctx.employee.id,
+        quantity: 4,
+        unit_price: 25,
+        amount_paid: 30,
+        payment_status: 'partially_paid',
+      });
+
+      const after = await request(app)
+        .get('/api/dashboard/metrics/')
+        .set(tokens.employee.headers);
+      expect(after.status).toBe(200);
+      const revenueAfter = parseFloat(after.body.data.my_revenue);
+      // paid portion only (+30), not full order total (100)
+      expect(revenueAfter).toBeCloseTo(revenueBefore + 30, 2);
+      expect(revenueAfter).not.toBeCloseTo(revenueBefore + 100, 2);
     });
 
     it('returns client metrics', async () => {

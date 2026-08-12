@@ -84,6 +84,24 @@ async function getTotalOutstanding() {
   return parseFloat(row?.total_outstanding || 0);
 }
 
+async function getPaidRevenueForDay(today) {
+  const { startOfToday, startOfTomorrow } = getTodayRange(today);
+  const [row] = await sequelize.query(
+    `
+    SELECT COALESCE(SUM(amount), 0) AS total
+    FROM payments
+    WHERE status = 'paid'
+      AND COALESCE(paid_at, created_at) >= :startOfToday
+      AND COALESCE(paid_at, created_at) < :startOfTomorrow
+    `,
+    {
+      replacements: { startOfToday, startOfTomorrow },
+      type: QueryTypes.SELECT,
+    }
+  );
+  return parseFloat(row?.total || 0);
+}
+
 async function getSuperadminMetrics(today) {
   const todayWhere = todayCreatedAtWhere(today);
   const [
@@ -103,7 +121,7 @@ async function getSuperadminMetrics(today) {
     Order.count(),
     Order.sum('amount_paid'),
     Order.count({ where: todayWhere }),
-    Order.sum('amount_paid', { where: todayWhere }),
+    getPaidRevenueForDay(today),
     Order.count({ where: { order_status: 'pending' } }),
     Order.count({ where: { order_status: 'in_progress' } }),
     Order.count({ where: { order_status: 'ready' } }),
@@ -122,7 +140,7 @@ async function getSuperadminMetrics(today) {
     total_orders: totalOrders,
     total_revenue: parseFloat(totalRevenue || 0),
     today_orders: todayOrders,
-    today_revenue: parseFloat(todayRevenue || 0),
+    today_revenue: todayRevenue,
     pending_orders: pendingOrders,
     in_progress_orders: inProgressOrders,
     ready_for_pickup: readyForPickup,
@@ -137,9 +155,7 @@ async function getAdminMetrics(today) {
   const totalOrders = await Order.count();
   const totalRevenue = parseFloat((await Order.sum('amount_paid')) || 0);
   const todayOrders = await Order.count({ where: todayWhere });
-  const todayRevenue = parseFloat(
-    (await Order.sum('amount_paid', { where: todayWhere })) || 0
-  );
+  const todayRevenue = await getPaidRevenueForDay(today);
   const pendingOrders = await Order.count({ where: { order_status: 'pending' } });
   const readyForPickup = await Order.count({ where: { order_status: 'ready' } });
 
@@ -170,7 +186,7 @@ async function getEmployeeMetrics(user, today) {
     where: { assigned_to: user.id, ...todayWhere },
   });
   const myRevenue = parseFloat(
-    (await Order.sum('total_amount', { where: { assigned_to: user.id } })) || 0
+    (await Order.sum('amount_paid', { where: { assigned_to: user.id } })) || 0
   );
 
   const assignedOrders = await Order.findAll({

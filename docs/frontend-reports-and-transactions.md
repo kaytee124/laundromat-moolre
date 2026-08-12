@@ -26,7 +26,8 @@ Paginated list of Payment rows (all methods).
 
 | Param | Notes |
 |-------|--------|
-| `page`, `page_size` | Default page 1, size ≤ 50 (JSON) |
+| `page`, `page_size` | Default page 1, size ≤ **200** (JSON). CSV export uses up to 5000 rows. |
+
 | `start_date`, `end_date` | `YYYY-MM-DD` inclusive (filters on `COALESCE(paid_at, created_at)`) |
 | `period` + `date` / `year` / `month` | Same period helpers as summary (optional instead of start/end) |
 | `payment_method` | `cash` \| `moolre` \| `ussd` |
@@ -95,11 +96,13 @@ GET /api/reports/transactions/?start_date=2026-08-01&end_date=2026-08-31&format=
 | Field | Meaning |
 |-------|---------|
 | `new_customers` | Customers with `created_at` in the period |
-| `revenue` | Sum of **paid** payment amounts with effective date in period |
+| `revenue` | **Paid only** — sum of payment amounts with `status=paid` and effective date (`COALESCE(paid_at, created_at)`) in the period. Unpaid ticket totals are never counted as revenue. |
 | `revenue_by_method` | Split: `cash`, `moolre`, `ussd` |
 | `transaction_count` | Count of those paid payments |
-| `owed` | Sum of `(total_amount − amount_paid)` for orders **created in the period** that are not fully `paid` |
+| `owed` | **Unpaid balances** — sum of `(total_amount − amount_paid)` for orders **created in the period** that are not fully `paid` |
 | `orders_with_balance` | Count of those orders |
+
+Dashboard metrics follow the same rule: `total_revenue` / `my_revenue` / `today_revenue` are cash actually received (`amount_paid` or paid payments); outstanding stays in `total_outstanding` / report `owed`.
 
 ### JSON example
 
@@ -137,11 +140,24 @@ GET /api/reports/summary/?period=monthly&year=2026&month=8&format=csv
 
 ---
 
+## Clients list pagination
+
+`GET /api/accounts/clients/` (and other shared list endpoints) accept `page_size` up to **200**. To load the full client roster in one request when possible:
+
+```http
+GET /api/accounts/clients/?page=1&page_size=200
+```
+
+If `count` > 200, keep paging with `page` / `total_pages`. Values above 200 are capped at 200.
+
+---
+
 ## FE checklist
 
 - [ ] Gate UI to **superadmin** only
-- [ ] Transactions table with method/status/date filters + pagination
+- [ ] Transactions table with method/status/date filters + pagination (`page_size` ≤ 200)
 - [ ] “Download CSV” uses `format=csv` (blob + filename from `Content-Disposition`)
 - [ ] Report picker: Daily / Monthly / Yearly → call summary
-- [ ] Show new customers, revenue (total + by method), owed, transaction count
+- [ ] Show new customers, **revenue (paid only)** + by method, **owed (unpaid)**, transaction count
+- [ ] Clients list: request `?page_size=200` and still page if `count` > 200
 - [ ] Do not use `/api/dashboard/revenue-report/` for this SA screen (that endpoint remains admin+SA day/week/month breakdown)

@@ -1492,7 +1492,7 @@ const spec = {
       id: { name: 'id', in: 'path', required: true, schema: { type: 'integer' } },
       userId: { name: 'userId', in: 'path', required: true, schema: { type: 'integer' } },
       page: { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
-      pageSize: { name: 'page_size', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+      pageSize: { name: 'page_size', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 200, default: 20 } },
       search: { name: 'search', in: 'query', schema: { type: 'string' } },
     },
     schemas: {
