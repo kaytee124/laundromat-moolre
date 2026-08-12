@@ -399,6 +399,46 @@ describe('Accounts API', () => {
       expect(capped.status).toBe(200);
       expect(capped.body.page_size).toBe(200);
     });
+
+    it('lists clients alphabetically by username', async () => {
+      const { hashPassword } = require('../../services/authService');
+      const laterName = uniqueUsername('zzz_sort');
+      const earlierName = uniqueUsername('aaa_sort');
+      const password_hash = await hashPassword(ctx.passwords.client);
+
+      await User.create({
+        username: laterName,
+        password_hash,
+        first_name: 'Zed',
+        last_name: 'Sort',
+        role: 'client',
+        is_active: true,
+        is_staff: false,
+        is_superuser: false,
+        date_joined: new Date(),
+        updated_at: new Date(),
+      });
+      await User.create({
+        username: earlierName,
+        password_hash,
+        first_name: 'Ann',
+        last_name: 'Sort',
+        role: 'client',
+        is_active: true,
+        is_staff: false,
+        is_superuser: false,
+        date_joined: new Date(),
+        updated_at: new Date(),
+      });
+
+      const res = await request(app)
+        .get('/api/accounts/clients/?page=1&page_size=200')
+        .set(tokens.admin.headers);
+      expect(res.status).toBe(200);
+      const usernames = res.body.results.map((c) => c.username);
+      expect(usernames).toEqual([...usernames].sort((a, b) => a.localeCompare(b)));
+      expect(usernames.indexOf(earlierName)).toBeLessThan(usernames.indexOf(laterName));
+    });
   });
 
   describe('POST /api/accounts/change-password/', () => {

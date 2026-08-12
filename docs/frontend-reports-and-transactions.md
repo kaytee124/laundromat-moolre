@@ -142,7 +142,7 @@ GET /api/reports/summary/?period=monthly&year=2026&month=8&format=csv
 
 ## Clients list pagination
 
-`GET /api/accounts/clients/` (and other shared list endpoints) accept `page_size` up to **200**. To load the full client roster in one request when possible:
+`GET /api/accounts/clients/` (and other shared list endpoints) accept `page_size` up to **200**. Results are sorted **alphabetically by username**. To load the full client roster in one request when possible:
 
 ```http
 GET /api/accounts/clients/?page=1&page_size=200

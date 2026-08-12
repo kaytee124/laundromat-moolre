@@ -379,7 +379,7 @@ async function listUsers(role, query, formatter) {
   const { count, rows } = await User.findAndCountAll({
     where,
     include: role === 'client' ? [{ model: Customer, as: 'customer_profile' }] : [],
-    order: [['id', 'ASC']],
+    order: role === 'client' ? [['username', 'ASC'], ['id', 'ASC']] : [['id', 'ASC']],
     offset,
     limit,
   });
