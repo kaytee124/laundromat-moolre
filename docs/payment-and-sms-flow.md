@@ -48,7 +48,7 @@ Existing status SMS (≥30% → `in_progress`, completed, schedule, pickup) is u
 A background job (every **5 minutes**) SMS-reminds when an order’s **delivery** is approaching:
 
 - **24 hours** and **1 hour** before `delivery_date` + `delivery_time` (Accra; default time `09:00` if time is null)
-- Recipients: customer, assigned worker (or all employees if unassigned), and all active superadmins
+- Recipients: customer and all active superadmins only (not admin / employee)
 - Skips completed / cancelled / picked-up orders; each window is sent once (`reminder_24h_sent_at` / `reminder_1h_sent_at`)
 
 Swagger UI at `/api/docs` documents these endpoints and notes SMS as side effects on payment and order-update operations.

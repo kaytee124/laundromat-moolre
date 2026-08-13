@@ -70,27 +70,6 @@ async function resolveCustomerName(order) {
   return name || user.username || null;
 }
 
-async function listWorkerRecipients(order) {
-  if (order.assigned_to) {
-    const assignee = await User.findByPk(order.assigned_to, {
-      attributes: ['id', 'phone_number', 'is_active', 'role'],
-    });
-    if (assignee?.is_active && assignee.phone_number) {
-      return [assignee];
-    }
-    return [];
-  }
-
-  return User.findAll({
-    where: {
-      role: 'employee',
-      is_active: true,
-      phone_number: { [Op.ne]: null },
-    },
-    attributes: ['id', 'phone_number'],
-  });
-}
-
 async function listSuperadminRecipients() {
   return User.findAll({
     where: {
@@ -146,13 +125,12 @@ async function sendDueReminderSms(order, kind) {
     if (ok) sent += 1;
   }
 
+  // Ops SMS: superadmins only (not admin / employee).
   const staffMsg = buildStaffDueMessage(order.order_number, customerName, dueLabel, kind);
-  const workers = await listWorkerRecipients(order);
   const superadmins = await listSuperadminRecipients();
-  const staff = [...workers, ...superadmins];
   const seen = new Set();
 
-  for (const user of staff) {
+  for (const user of superadmins) {
     const phone = String(user.phone_number || '').trim();
     if (!phone || seen.has(phone)) continue;
     seen.add(phone);

@@ -140,6 +140,19 @@ describe('Payment receipt SMS + due reminders', () => {
     });
     expect(mid).toBeGreaterThan(before);
 
+    const staffRows = await SmsOutbox.findAll({
+      where: {
+        purpose: { [Op.in]: ['order_due_1h_staff', 'order_due_24h_staff'] },
+        related_type: 'user',
+      },
+      order: [['id', 'DESC']],
+      limit: 20,
+    });
+    const staffRelatedIds = staffRows.map((r) => String(r.related_id));
+    expect(staffRelatedIds).toContain(String(ctx.superadmin.id));
+    expect(staffRelatedIds).not.toContain(String(ctx.employee.id));
+    expect(staffRelatedIds).not.toContain(String(ctx.admin.id));
+
     const second = await processDueReminders(new Date());
     expect(second.reminded1h).toBe(0);
 
