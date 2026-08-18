@@ -60,7 +60,9 @@ async function listActiveSuperadminPhones() {
 }
 
 /**
- * SMS customer + all active superadmins after a payment is confirmed paid.
+ * SMS after a payment is confirmed paid and the order is fully paid.
+ * Cash: superadmins only. MoMo/USSD: customer + superadmins.
+ * Partial payments send no receipt SMS.
  */
 async function notifyPaymentReceived(orderId, paymentId) {
   const order = await Order.findByPk(orderId, {
@@ -104,6 +106,9 @@ async function notifyPaymentReceived(orderId, paymentId) {
   if (!payment || payment.status !== 'paid') {
     return { customer: false, staff: 0 };
   }
+  if (order.payment_status !== 'paid') {
+    return { customer: false, staff: 0 };
+  }
 
   const total = parseFloat(order.total_amount);
   const amountPaid = parseFloat(order.amount_paid);
@@ -133,7 +138,8 @@ async function notifyPaymentReceived(orderId, paymentId) {
   });
 
   let customerOk = false;
-  if (order.customer?.phone_number) {
+  const notifyCustomer = payment.payment_method !== 'cash' && order.customer?.phone_number;
+  if (notifyCustomer) {
     try {
       const result = await enqueueSms({
         recipient: formatSmsRecipient(order.customer.phone_number),

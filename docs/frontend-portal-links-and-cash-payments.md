@@ -63,7 +63,7 @@ Authorization: Bearer <staff access JWT>
 - Accepting staff is the JWT user (`created_by` on the Payment row).
 - Success `201` returns payment + updated order fields including `amount_paid`, `balance`, `payment_status` (`pending` | `partially_paid` | `paid`).
 - Overpay → `400` `AMOUNT_EXCEEDS_BALANCE`.
-- Server SMS the customer and every active **superadmin** (merchant) with a payment receipt (cash and MoMo). Cash copy includes who received the payment; MoMo copy includes the customer name only. **Admins do not receive payment SMS** — they receive order due-reminder SMS only.
+- Server SMS: **cash** full pay → active **superadmins only** (customer name + who received the cash). **MoMo** full pay → customer + superadmins. Partial payments, due reminders, and in-progress SMS are not sent. **Admins do not receive payment SMS.**
 
 UI checklist:
 

@@ -4,7 +4,7 @@ const moolreService = require('../../services/moolreService');
 const { getTokensForRoles } = require('../helpers/auth');
 const { createService, createOrder } = require('../helpers/fixtures');
 const { processDueReminders, computeDueAt } = require('../../services/orderDueReminderService');
-const { User, Order, SmsOutbox } = require('../../models');
+const { Order, SmsOutbox } = require('../../models');
 const { Op } = require('sequelize');
 
 jest.mock('axios');
@@ -40,8 +40,9 @@ describe('Payment receipt SMS + due reminders', () => {
     jest.restoreAllMocks();
   });
 
-  it('partial cash then full cash sets partially_paid then paid and enqueues payment SMS', async () => {
-    const beforeCount = await SmsOutbox.count({ where: { purpose: 'payment_received' } });
+  it('partial cash does not enqueue payment SMS; full cash SMSs superadmin only', async () => {
+    const beforeCustomer = await SmsOutbox.count({ where: { purpose: 'payment_received' } });
+    const beforeStaff = await SmsOutbox.count({ where: { purpose: 'payment_received_staff' } });
     const service = await createService(ctx.admin, { name: `Pay SMS ${Date.now()}` });
     const order = await createOrder(ctx.employee, ctx.customer, service, {
       quantity: 1,
@@ -59,54 +60,9 @@ describe('Payment receipt SMS + due reminders', () => {
     expect(partial.status).toBe(201);
     expect(partial.body.data.order.payment_status).toBe('partially_paid');
 
-    await waitForSms(beforeCount + 1);
-
-    const deadline = Date.now() + 5000;
-    let staffSms = [];
-    while (Date.now() < deadline) {
-      staffSms = await SmsOutbox.findAll({
-        where: {
-          purpose: 'payment_received_staff',
-          related_id: ctx.superadmin.id,
-        },
-        order: [['id', 'DESC']],
-        limit: 1,
-      });
-      if (staffSms.length) break;
-      // related_id may be string in MySQL
-      staffSms = await SmsOutbox.findAll({
-        where: { purpose: 'payment_received_staff' },
-        order: [['id', 'DESC']],
-        limit: 5,
-      });
-      if (staffSms.some((r) => String(r.related_id) === String(ctx.superadmin.id))) break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    expect(
-      staffSms.some((r) => String(r.related_id) === String(ctx.superadmin.id)) || staffSms.length > 0
-    ).toBe(true);
-
-    const staffPaymentForSuperadmin = staffSms.find(
-      (r) => String(r.related_id) === String(ctx.superadmin.id)
-    );
-    expect(staffPaymentForSuperadmin?.message).toMatch(/from client1/i);
-    expect(staffPaymentForSuperadmin?.message).toMatch(/Received by employee1/i);
-
-    const adminPaymentSms = await SmsOutbox.findAll({
-      where: {
-        purpose: 'payment_received_staff',
-        related_id: ctx.admin.id,
-      },
-    });
-    expect(adminPaymentSms).toHaveLength(0);
-
-    const customerSms = await SmsOutbox.findAll({
-      where: { purpose: 'payment_received' },
-      order: [['id', 'DESC']],
-      limit: 3,
-    });
-    expect(customerSms.some((r) => String(r.related_id) === String(ctx.customer.id))).toBe(true);
-    expect(customerSms[0].message).toMatch(/Balance|partial|GHS/i);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(await SmsOutbox.count({ where: { purpose: 'payment_received' } })).toBe(beforeCustomer);
+    expect(await SmsOutbox.count({ where: { purpose: 'payment_received_staff' } })).toBe(beforeStaff);
 
     const full = await request(app)
       .post('/api/payments/cash/')
@@ -119,9 +75,40 @@ describe('Payment receipt SMS + due reminders', () => {
     expect(full.status).toBe(201);
     expect(full.body.data.order.payment_status).toBe('paid');
     expect(parseFloat(full.body.data.order.balance)).toBe(0);
+
+    await waitForSms(beforeStaff + 1);
+
+    const deadline = Date.now() + 5000;
+    let staffSms = [];
+    while (Date.now() < deadline) {
+      staffSms = await SmsOutbox.findAll({
+        where: { purpose: 'payment_received_staff' },
+        order: [['id', 'DESC']],
+        limit: 5,
+      });
+      if (staffSms.some((r) => String(r.related_id) === String(ctx.superadmin.id))) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    const staffPaymentForSuperadmin = staffSms.find(
+      (r) => String(r.related_id) === String(ctx.superadmin.id)
+    );
+    expect(staffPaymentForSuperadmin).toBeTruthy();
+    expect(staffPaymentForSuperadmin.message).toMatch(/from client1/i);
+    expect(staffPaymentForSuperadmin.message).toMatch(/Received by employee1/i);
+
+    const adminPaymentSms = await SmsOutbox.findAll({
+      where: {
+        purpose: 'payment_received_staff',
+        related_id: ctx.admin.id,
+      },
+    });
+    expect(adminPaymentSms).toHaveLength(0);
+
+    expect(await SmsOutbox.count({ where: { purpose: 'payment_received' } })).toBe(beforeCustomer);
   });
 
-  it('due reminder job sends 1h SMS once and does not duplicate', async () => {
+  it('due reminder job does not send SMS', async () => {
     const service = await createService(ctx.admin, { name: `Due Rem ${Date.now()}` });
     const dueAt = new Date(Date.now() + 50 * 60 * 1000);
     const deliveryDate = dueAt.toISOString().slice(0, 10);
@@ -140,40 +127,25 @@ describe('Payment receipt SMS + due reminders', () => {
     );
 
     const before = await SmsOutbox.count({
-      where: { purpose: { [Op.in]: ['order_due_1h', 'order_due_1h_staff'] } },
+      where: {
+        purpose: { [Op.in]: ['order_due_1h', 'order_due_1h_staff', 'order_due_24h', 'order_due_24h_staff'] },
+      },
     });
 
     const first = await processDueReminders(new Date());
-    expect(first.reminded1h).toBeGreaterThanOrEqual(1);
+    expect(first.reminded1h).toBe(0);
+    expect(first.reminded24h).toBe(0);
+    expect(first.scanned).toBe(0);
 
     const reloaded = await Order.findByPk(order.id);
-    expect(reloaded.reminder_1h_sent_at).toBeTruthy();
-    expect(reloaded.reminder_24h_sent_at).toBeTruthy();
-
-    const mid = await SmsOutbox.count({
-      where: { purpose: { [Op.in]: ['order_due_1h', 'order_due_1h_staff'] } },
-    });
-    expect(mid).toBeGreaterThan(before);
-
-    const staffRows = await SmsOutbox.findAll({
-      where: {
-        purpose: { [Op.in]: ['order_due_1h_staff', 'order_due_24h_staff'] },
-        related_type: 'user',
-      },
-      order: [['id', 'DESC']],
-      limit: 20,
-    });
-    const staffRelatedIds = staffRows.map((r) => String(r.related_id));
-    expect(staffRelatedIds).toContain(String(ctx.superadmin.id));
-    expect(staffRelatedIds).toContain(String(ctx.admin.id));
-    expect(staffRelatedIds).not.toContain(String(ctx.employee.id));
-
-    const second = await processDueReminders(new Date());
-    expect(second.reminded1h).toBe(0);
+    expect(reloaded.reminder_1h_sent_at).toBeFalsy();
+    expect(reloaded.reminder_24h_sent_at).toBeFalsy();
 
     const after = await SmsOutbox.count({
-      where: { purpose: { [Op.in]: ['order_due_1h', 'order_due_1h_staff'] } },
+      where: {
+        purpose: { [Op.in]: ['order_due_1h', 'order_due_1h_staff', 'order_due_24h', 'order_due_24h_staff'] },
+      },
     });
-    expect(after).toBe(mid);
+    expect(after).toBe(before);
   });
 });

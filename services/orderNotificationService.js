@@ -221,9 +221,8 @@ async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
     return;
   }
 
-  const isInProgress = newStatus === 'in_progress' && previousStatus !== 'in_progress';
   const isCompleted = newStatus === 'completed' && previousStatus !== 'completed';
-  if (!isInProgress && !isCompleted) {
+  if (!isCompleted) {
     return;
   }
 
@@ -234,13 +233,9 @@ async function notifyOrderStatusChange(orderId, previousStatus, newStatus) {
     return;
   }
 
-  const message = isInProgress
-    ? buildInProgressMessage(order.order_number)
-    : buildCompletedMessage(order.order_number);
-
-  await sendCustomerSms(orderId, message, {
-    purpose: isInProgress ? 'order_in_progress' : 'order_completed',
-    ref: `${order.order_number}-${isInProgress ? 'inprog' : 'done'}-${Date.now()}`,
+  await sendCustomerSms(orderId, buildCompletedMessage(order.order_number), {
+    purpose: 'order_completed',
+    ref: `${order.order_number}-done-${Date.now()}`,
   });
 }
 

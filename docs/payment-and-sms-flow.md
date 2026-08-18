@@ -6,9 +6,9 @@ This document describes the end-to-end path from a client paying for an order th
 
 | Flow | Auth | Payment init | SMS triggers |
 |------|------|--------------|--------------|
-| **Web client** | CSRF + JWT (`client` role) | `POST /api/payments/initialize/` | Receipt SMS on confirm; ≥30% → `in_progress`; staff `completed` |
-| **USSD** | None (phone lookup) | `POST /api/ussd/payments/initialize/` | Same as web after confirm |
-| **Cash (staff)** | JWT (`admin` / `employee` / `superadmin`) | `POST /api/payments/cash/` | Receipt SMS immediately; ≥30% → `in_progress` when threshold met |
+| **Web client** | CSRF + JWT (`client` role) | `POST /api/payments/initialize/` | Receipt SMS on **full pay** only (customer + superadmin); ≥30% sets `in_progress` **without SMS**; staff `completed` SMS |
+| **USSD** | None (phone lookup) | `POST /api/ussd/payments/initialize/` | Same as web (receipt SMS on **full pay** only) |
+| **Cash (staff)** | JWT (`admin` / `employee` / `superadmin`) | `POST /api/payments/cash/` | Full-pay receipt to **superadmin only** (not customer); ≥30% sets `in_progress` without SMS |
 
 ### Payment status
 
@@ -37,19 +37,16 @@ Authorization: Bearer <staff access>
 
 Creates a **paid** Payment row (`payment_method: cash`) with `created_by` = accepting staff and the given `paid_at`, then syncs order `amount_paid` / `payment_status` / `balance`.
 
-**Receipt SMS (every successful cash or confirmed MoMo payment):**
-- Customer (`Customer.phone_number`) — amount just paid, method, paid-to-date, balance, status
-- Every active **superadmin** with `User.phone_number` — merchant copy: customer name; for **cash**, also who received the payment (`Payment.created_by` staff name). MoMo/USSD: customer name only. **Admins and employees do not receive payment SMS.**
+**Receipt SMS (only when the order is fully `paid` — not on partials):**
+- **Cash:** every active **superadmin** only (customer name + who received the cash). **The customer is not SMS’d for cash.**
+- **MoMo / USSD:** customer + every active superadmin. MoMo copy includes customer name only (no cash-taker).
+- **Admins and employees do not receive payment SMS.**
 
-Existing status SMS (≥30% → `in_progress`, completed, schedule, pickup) is unchanged.
+Status SMS: **completed**, schedule change, and pickup remain. **No in-progress SMS** (staff update or auto at ≥30% paid — the order status still changes).
 
 ### Due reminders (delivery)
 
-A background job (every **5 minutes**) SMS-reminds when an order’s **delivery** is approaching:
-
-- **24 hours** and **1 hour** before `delivery_date` + `delivery_time` (Accra; default time `09:00` if time is null)
-- Recipients: customer; active **admins** and **superadmins** with `User.phone_number` (order ops only — not employees)
-- Skips completed / cancelled / picked-up orders; each window is sent once (`reminder_24h_sent_at` / `reminder_1h_sent_at`)
+Due-reminder SMS (24h / 1h before delivery) is **disabled**. The background job still runs but sends nothing.
 
 Swagger UI at `/api/docs` documents these endpoints and notes SMS as side effects on payment and order-update operations.
 
@@ -140,7 +137,7 @@ The server:
    - If cumulative paid ≥ **30%** of `total_amount` and order is still **`pending`**:
      - Sets `order_status` to **`in_progress`**
      - Writes `order_status_history`
-     - Sends **in-progress SMS** to `Customer.phone_number` (async, non-blocking)
+     - **Does not** send in-progress SMS
 
 Reconciliation cron (every 2 minutes) can also confirm pending payments if the webhook is delayed.
 
@@ -156,7 +153,7 @@ GET /api/payments/{externalref}/
 { "status": "PENDING" }
 ```
 
-Poll until `PAID` (or `FAILED`). When `PAID`, the order may already be `in_progress` and the customer may have received the in-progress SMS.
+Poll until `PAID` (or `FAILED`). When `PAID`, the order may already be `in_progress` (no in-progress SMS).
 
 ### 6. Staff completes the order
 
@@ -179,14 +176,14 @@ This triggers a **completion SMS** asynchronously:
 |------|--------|
 | Sender ID | `MOOLRE_SMS_SENDER_ID` env var |
 | Recipient | `Customer.phone_number` from DB → formatted to `233XXXXXXXXX` |
-| In-progress message | `Your order {order_number} is now in progress. Thank you for choosing us.` |
+| In-progress message | *(not sent)* |
 | Completed message | `Your order {order_number} is ready for pickup/delivery. Thank you.` |
 | Schedule earlier | `Your order {order_number} estimated completion was moved earlier to {date}. Good news — we'll finish sooner.` |
 | Schedule later | `Sorry for the inconvenience. Your order {order_number} estimated completion is now {date}. We'll still complete your items carefully and on the updated schedule.` |
 | Picked up | `Thank you for using our services. Your order {order_number} was picked up on {date} at {time}. We look forward to serving you again.` |
 | Moolre API | `POST {MOOLRE_API_BASE}{MOOLRE_PATH_SMS_SEND}` with `X-API-VASKEY` |
 
-SMS is sent **once per status transition** (no duplicate in-progress SMS on further payments once already `in_progress`). Changing `estimated_completion_date` or setting `picked_up: true` also sends SMS.
+SMS is sent on **completed**, schedule change, and pickup (not on `in_progress`). Changing `estimated_completion_date` or setting `picked_up: true` also sends SMS.
 
 If SMS fails, the server logs `order_sms_failed` and the payment/order API still returns success.
 

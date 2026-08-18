@@ -161,60 +161,11 @@ async function sendDueReminderSms(order, kind) {
 }
 
 /**
- * Scan open orders with a delivery_date and send 24h / 1h reminders once each.
+ * Due-reminder SMS is disabled (customers found reminder volume too high).
+ * Job still runs; this is a no-op so no SMS is sent.
  */
-async function processDueReminders(now = new Date()) {
-  const orders = await Order.findAll({
-    where: {
-      delivery_date: { [Op.ne]: null },
-      picked_up: false,
-      order_status: { [Op.notIn]: ['completed', 'cancelled'] },
-      [Op.or]: [{ reminder_24h_sent_at: null }, { reminder_1h_sent_at: null }],
-    },
-    include: [
-      {
-        model: Customer,
-        as: 'customer',
-        attributes: ['id', 'phone_number', 'user_id'],
-        include: [
-          {
-            model: User,
-            as: 'user',
-            attributes: ['id', 'first_name', 'last_name', 'username'],
-            required: false,
-          },
-        ],
-      },
-    ],
-  });
-
-  let reminded24h = 0;
-  let reminded1h = 0;
-
-  for (const order of orders) {
-    const dueAt = computeDueAt(order.delivery_date, order.delivery_time);
-    if (!dueAt) continue;
-    if (now >= dueAt) continue;
-
-    const msUntilDue = dueAt.getTime() - now.getTime();
-    const hoursUntilDue = msUntilDue / (60 * 60 * 1000);
-
-    if (!order.reminder_24h_sent_at && hoursUntilDue <= 24) {
-      await sendDueReminderSms(order, '24h');
-      order.reminder_24h_sent_at = now;
-      await order.save();
-      reminded24h += 1;
-    }
-
-    if (!order.reminder_1h_sent_at && hoursUntilDue <= 1) {
-      await sendDueReminderSms(order, '1h');
-      order.reminder_1h_sent_at = now;
-      await order.save();
-      reminded1h += 1;
-    }
-  }
-
-  return { scanned: orders.length, reminded24h, reminded1h };
+async function processDueReminders(_now = new Date()) {
+  return { scanned: 0, reminded24h: 0, reminded1h: 0 };
 }
 
 module.exports = {

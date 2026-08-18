@@ -139,7 +139,7 @@ describe('Order SMS notifications', () => {
   });
 
   describe('30% payment auto in_progress', () => {
-    it('sends in-progress SMS when paid total reaches 30%', async () => {
+    it('sets in_progress at 30% paid with no SMS', async () => {
       const service = await createService(ctx.admin, { price: 10 });
       const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
         quantity: 1,
@@ -168,24 +168,15 @@ describe('Order SMS notifications', () => {
 
       expect(res.status).toBe(200);
 
-      // receipt SMS (awaited) + in_progress SMS (async)
-      await waitForSpyCalls(sendSmsSpy, 2);
+      await waitForSpyCalls(sendSmsSpy, 0);
 
       const updatedOrder = await Order.findByPk(smsOrder.id);
       expect(updatedOrder.order_status).toBe('in_progress');
       expect(parseFloat(updatedOrder.amount_paid)).toBe(3);
-
-      const messages = sendSmsSpy.mock.calls.map((c) => c[0].message);
-      expect(messages.some((m) => /Payment of GHS/i.test(m))).toBe(true);
-      expect(messages.some((m) => /in progress/i.test(m))).toBe(true);
-      expect(sendSmsSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          recipient: formatSmsRecipient(ctx.customer.phone_number),
-        })
-      );
+      expect(sendSmsSpy).not.toHaveBeenCalled();
     });
 
-    it('sends payment receipt but not duplicate in-progress SMS on further payments', async () => {
+    it('sends payment receipt on full pay but not duplicate in-progress SMS', async () => {
       sendSmsSpy.mockClear();
       const service = await createService(ctx.admin, { price: 10 });
       const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
@@ -195,10 +186,24 @@ describe('Order SMS notifications', () => {
         payment_status: 'partially_paid',
       });
 
+      await Payment.create({
+        order_id: smsOrder.id,
+        externalref: 'PAY-SMS-PRIOR',
+        amount: 3,
+        status: 'paid',
+        payment_method: 'moolre',
+        provider: 'moolre',
+        currency: 'GHS',
+        metadata: {},
+        created_by: ctx.client.id,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
       const payment = await Payment.create({
         order_id: smsOrder.id,
         externalref: 'PAY-SMS-NODUP',
-        amount: 2,
+        amount: 7,
         status: 'pending',
         payment_method: 'moolre',
         provider: 'moolre',
@@ -209,11 +214,11 @@ describe('Order SMS notifications', () => {
         updated_at: new Date(),
       });
 
-      mockMoolreStatusSuccess(2);
+      mockMoolreStatusSuccess(7);
 
       const res = await request(app)
         .post('/api/payments/moolre/webhook/')
-        .send(buildWebhookPayload(payment.externalref, { amount: '2.00', value: '2.00' }));
+        .send(buildWebhookPayload(payment.externalref, { amount: '7.00', value: '7.00' }));
 
       expect(res.status).toBe(200);
       await waitForSpyCalls(sendSmsSpy, 1);
@@ -224,7 +229,7 @@ describe('Order SMS notifications', () => {
   });
 
   describe('staff order status updates', () => {
-    it('sends in-progress SMS when staff sets in_progress', async () => {
+    it('does not send SMS when staff sets in_progress', async () => {
       const service = await createService(ctx.admin);
       const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
         order_status: 'pending',
@@ -236,8 +241,10 @@ describe('Order SMS notifications', () => {
         .send({ order_status: 'in_progress' });
 
       expect(res.status).toBe(200);
-      await waitForSpyCalls(sendSmsSpy, 1);
-      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/in progress/i);
+      await waitForSpyCalls(sendSmsSpy, 0);
+      expect(sendSmsSpy).not.toHaveBeenCalled();
+      const updated = await Order.findByPk(smsOrder.id);
+      expect(updated.order_status).toBe('in_progress');
     });
 
     it('sends completed SMS when staff sets completed', async () => {

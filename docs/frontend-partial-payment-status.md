@@ -105,10 +105,11 @@ USSD and pay-remaining flows treat both `pending` and `partially_paid` as payabl
 
 ## 4. SMS (side effects — no FE call)
 
-On every successful cash or confirmed MoMo payment the server SMS:
+On **full pay only** (`payment_status: paid`) the server SMS:
 
-- Customer — amount just paid, method, paid-to-date, balance, status (worded as “partial” when `partially_paid`)
-- Active **superadmins** (merchant) — payment copy with customer name; cash payments also name who received the cash. **Admins do not get payment SMS** (they get order due-reminder SMS only).
+- **Cash:** active **superadmins** only (customer name + who received the cash). The customer is not SMS’d.
+- **MoMo / USSD:** customer + active superadmins.
+- Partial payments send **no** receipt SMS. Due-reminder and **in-progress** SMS are **off**.
 
 The frontend does not trigger these; just refresh order state after payment succeeds.
 
