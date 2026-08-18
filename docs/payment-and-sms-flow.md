@@ -39,7 +39,7 @@ Creates a **paid** Payment row (`payment_method: cash`) with `created_by` = acce
 
 **Receipt SMS (every successful cash or confirmed MoMo payment):**
 - Customer (`Customer.phone_number`) — amount just paid, method, paid-to-date, balance, status
-- Every active **superadmin** with `User.phone_number` — same summary for ops
+- Every active **superadmin** with `User.phone_number` — merchant copy: customer name; for **cash**, also who received the payment (`Payment.created_by` staff name). MoMo/USSD: customer name only. **Admins and employees do not receive payment SMS.**
 
 Existing status SMS (≥30% → `in_progress`, completed, schedule, pickup) is unchanged.
 
@@ -48,7 +48,7 @@ Existing status SMS (≥30% → `in_progress`, completed, schedule, pickup) is u
 A background job (every **5 minutes**) SMS-reminds when an order’s **delivery** is approaching:
 
 - **24 hours** and **1 hour** before `delivery_date` + `delivery_time` (Accra; default time `09:00` if time is null)
-- Recipients: customer and all active superadmins only (not admin / employee)
+- Recipients: customer; active **admins** and **superadmins** with `User.phone_number` (order ops only — not employees)
 - Skips completed / cancelled / picked-up orders; each window is sent once (`reminder_24h_sent_at` / `reminder_1h_sent_at`)
 
 Swagger UI at `/api/docs` documents these endpoints and notes SMS as side effects on payment and order-update operations.

@@ -70,6 +70,17 @@ async function resolveCustomerName(order) {
   return name || user.username || null;
 }
 
+async function listAdminRecipients() {
+  return User.findAll({
+    where: {
+      role: 'admin',
+      is_active: true,
+      phone_number: { [Op.ne]: null },
+    },
+    attributes: ['id', 'phone_number'],
+  });
+}
+
 async function listSuperadminRecipients() {
   return User.findAll({
     where: {
@@ -125,12 +136,13 @@ async function sendDueReminderSms(order, kind) {
     if (ok) sent += 1;
   }
 
-  // Ops SMS: superadmins only (not admin / employee).
+  // Order ops SMS: admins + superadmins (not employees). Payment SMS is superadmin-only elsewhere.
   const staffMsg = buildStaffDueMessage(order.order_number, customerName, dueLabel, kind);
+  const admins = await listAdminRecipients();
   const superadmins = await listSuperadminRecipients();
   const seen = new Set();
 
-  for (const user of superadmins) {
+  for (const user of [...admins, ...superadmins]) {
     const phone = String(user.phone_number || '').trim();
     if (!phone || seen.has(phone)) continue;
     seen.add(phone);

@@ -22,6 +22,12 @@ function buildCustomerPaymentMessage({ orderNumber, amount, method, amountPaid, 
   );
 }
 
+function formatUserDisplayName(user) {
+  if (!user) return null;
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+  return name || user.username || null;
+}
+
 function buildStaffPaymentMessage({
   orderNumber,
   customerName,
@@ -30,12 +36,16 @@ function buildStaffPaymentMessage({
   amountPaid,
   balance,
   paymentStatus,
+  receivedByName,
 }) {
-  const who = customerName ? ` (${customerName})` : '';
-  return (
-    `Bubblebytes: ${methodLabel(method)} payment GHS ${formatMoney(amount)} for ${orderNumber}${who}. ` +
-    `Paid: GHS ${formatMoney(amountPaid)}. Balance: GHS ${formatMoney(balance)}. Status: ${paymentStatus}.`
-  );
+  const payer = customerName || 'Customer';
+  let msg =
+    `Bubblebytes: GHS ${formatMoney(amount)} ${methodLabel(method)} from ${payer} for ${orderNumber}.`;
+  if (method === 'cash' && receivedByName) {
+    msg += ` Received by ${receivedByName}.`;
+  }
+  msg += ` Paid: GHS ${formatMoney(amountPaid)}. Balance: GHS ${formatMoney(balance)}. Status: ${paymentStatus}.`;
+  return msg;
 }
 
 async function listActiveSuperadminPhones() {
@@ -81,7 +91,15 @@ async function notifyPaymentReceived(orderId, paymentId) {
   if (!order) return { customer: false, staff: 0 };
 
   const payment = await Payment.findByPk(paymentId, {
-    attributes: ['id', 'amount', 'payment_method', 'status'],
+    attributes: ['id', 'amount', 'payment_method', 'status', 'created_by'],
+    include: [
+      {
+        model: User,
+        as: 'creator',
+        attributes: ['id', 'first_name', 'last_name', 'username'],
+        required: false,
+      },
+    ],
   });
   if (!payment || payment.status !== 'paid') {
     return { customer: false, staff: 0 };
@@ -90,10 +108,9 @@ async function notifyPaymentReceived(orderId, paymentId) {
   const total = parseFloat(order.total_amount);
   const amountPaid = parseFloat(order.amount_paid);
   const balance = Math.max(0, total - amountPaid);
-  const customerName = order.customer?.user
-    ? [order.customer.user.first_name, order.customer.user.last_name].filter(Boolean).join(' ').trim() ||
-      order.customer.user.username
-    : null;
+  const customerName = formatUserDisplayName(order.customer?.user);
+  const receivedByName =
+    payment.payment_method === 'cash' ? formatUserDisplayName(payment.creator) : null;
 
   const customerMsg = buildCustomerPaymentMessage({
     orderNumber: order.order_number,
@@ -112,6 +129,7 @@ async function notifyPaymentReceived(orderId, paymentId) {
     amountPaid,
     balance,
     paymentStatus: order.payment_status,
+    receivedByName,
   });
 
   let customerOk = false;
@@ -172,4 +190,5 @@ module.exports = {
   buildCustomerPaymentMessage,
   buildStaffPaymentMessage,
   formatMoney,
+  formatUserDisplayName,
 };

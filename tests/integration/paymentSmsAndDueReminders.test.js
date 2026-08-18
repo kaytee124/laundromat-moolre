@@ -27,6 +27,7 @@ describe('Payment receipt SMS + due reminders', () => {
     ctx = global.testContext;
     tokens = await getTokensForRoles(ctx);
     await ctx.superadmin.update({ phone_number: '0240000099' });
+    await ctx.admin.update({ phone_number: '0240000077' });
     await ctx.employee.update({ phone_number: '0240000088' });
   });
 
@@ -84,6 +85,20 @@ describe('Payment receipt SMS + due reminders', () => {
     expect(
       staffSms.some((r) => String(r.related_id) === String(ctx.superadmin.id)) || staffSms.length > 0
     ).toBe(true);
+
+    const staffPaymentForSuperadmin = staffSms.find(
+      (r) => String(r.related_id) === String(ctx.superadmin.id)
+    );
+    expect(staffPaymentForSuperadmin?.message).toMatch(/from client1/i);
+    expect(staffPaymentForSuperadmin?.message).toMatch(/Received by employee1/i);
+
+    const adminPaymentSms = await SmsOutbox.findAll({
+      where: {
+        purpose: 'payment_received_staff',
+        related_id: ctx.admin.id,
+      },
+    });
+    expect(adminPaymentSms).toHaveLength(0);
 
     const customerSms = await SmsOutbox.findAll({
       where: { purpose: 'payment_received' },
@@ -150,8 +165,8 @@ describe('Payment receipt SMS + due reminders', () => {
     });
     const staffRelatedIds = staffRows.map((r) => String(r.related_id));
     expect(staffRelatedIds).toContain(String(ctx.superadmin.id));
+    expect(staffRelatedIds).toContain(String(ctx.admin.id));
     expect(staffRelatedIds).not.toContain(String(ctx.employee.id));
-    expect(staffRelatedIds).not.toContain(String(ctx.admin.id));
 
     const second = await processDueReminders(new Date());
     expect(second.reminded1h).toBe(0);
