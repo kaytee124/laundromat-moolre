@@ -88,6 +88,9 @@ describe('Swagger API documentation', () => {
       expect(spec.paths['/api/accounts/superadmin/update/']).toBeDefined();
       expect(spec.paths['/api/orders/list/']).toBeDefined();
       expect(spec.paths['/api/dashboard/metrics/']).toBeDefined();
+      expect(spec.paths['/api/notifications/pickups/preview/']).toBeDefined();
+      expect(spec.paths['/api/accounts/staff/user/{userId}/orders/']).toBeDefined();
+      expect(spec.paths['/api/orders/{id}/complete/']).toBeDefined();
     });
 
     it('defines security schemes', () => {

@@ -22,4 +22,9 @@ async function update(req, res) {
   res.json({ status: 'success', message: 'Order updated successfully', data });
 }
 
-module.exports = { list, getById, create, update };
+async function complete(req, res) {
+  const data = await orderService.completeOrder(req.params.id, req.user);
+  res.json({ status: 'success', message: 'Order completed successfully', data });
+}
+
+module.exports = { list, getById, create, update, complete };

@@ -3,7 +3,7 @@
   "info": {
     "title": "Bubblebytes Laundry Management API",
     "version": "1.0.0",
-    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Account create + SMS**\n- Ghana phone format required on create/update: `0XXXXXXXXX` (10) or `+233XXXXXXXXX` (13).\n- **Admin / employee / superadmin create** — `phone_number` is **compulsory**. Credential SMS (username + `Kolendo@{username}`, keep secret). **No** portal magic link. Response includes `default_password`.\n- **Client (staff) create** — welcome SMS with username + password + magic link. Response does **not** include `default_password`.\n- Magic login (`POST /api/accounts/welcome-login/`) is **client-only**. See `docs/frontend-welcome-magic-login.md`.\n- SMS is written to an **outbox** and sent immediately; transient Moolre failures stay `pending` and are retried every **2 hours**. Permanent invalid-phone errors mark `customers.phone_needs_correction` and are not retried.\n- `POST /api/orders/create/` returns `422 PHONE_NEEDS_CORRECTION` until staff updates the customer phone to a valid Ghana number.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server enqueues Moolre SMS via the outbox after certain order changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`\n  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated\n  - **picked up** — when `picked_up` flips to `true`\n- SMS failures do **not** fail payment or order API responses (except order create when phone needs correction).\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
+    "description": "REST API for laundry order management, customers, payments, and dashboards.\n\n**Server URL** — resolved from the request host at runtime when viewing Swagger (not `BASE_URL`).\n\n**Success envelope** (most mutations): `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n\n**Error format**: `{ \"error_code\": \"CODE\", \"message\": \"Human-readable message\", \"status_code\": 400 }`\n\n**Authentication**\n1. `GET /api/accounts/csrf/` — sets `csrf_token` cookie and returns the same value in JSON.\n2. **Double-submit CSRF** — login/logout/refresh require BOTH the `csrf_token` cookie AND `X-CSRF-Token` header with the same value.\n3. Swagger UI at `/api/docs` auto-fetches CSRF and injects the header on login/logout/refresh (withCredentials enabled).\n4. Login returns `access` JWT; use `Authorization: Bearer <access>` in Swagger **Authorize**.\n5. Refresh token is stored in HttpOnly cookie (`refresh_token` by default).\n\n**Authentication matrix**\n| Auth type | Header / cookie | Endpoints |\n|-----------|-----------------|-----------|\n| None | — | health, csrf, register, services list, Moolre payment webhook, payment status poll, USSD, token verify (body) |\n| CSRF only | `csrf_token` cookie + `X-CSRF-Token` | login |\n| Access JWT | `Authorization: Bearer <access>` | most `/api/*` routes (see per-operation **Required auth**) |\n| Access JWT + CSRF | Bearer + `X-CSRF-Token` | logout |\n| Refresh + CSRF | `refresh_token` cookie + `X-CSRF-Token` | token refresh |\n\n**Notes**\n- `POST /api/accounts/token/verify/` — JWT in body field `token`, not Bearer header.\n- `POST /api/accounts/superadmin/create/` — no JWT for first bootstrap; superadmin Bearer after.\n- Expired access JWT: if `refresh_token` cookie and `X-CSRF-Token` are present, `authenticate` may silently refresh.\n\n**Account create + SMS**\n- Ghana phone format required on create/update: `0XXXXXXXXX` (10) or `+233XXXXXXXXX` (13).\n- **Admin / employee / superadmin create** — `phone_number` is **compulsory**. Credential SMS (username + `Kolendo@{username}`, keep secret). **No** portal magic link. Response includes `default_password`.\n- **Client (staff) create** — welcome SMS with username + password + magic link. Response does **not** include `default_password`.\n- Magic login (`POST /api/accounts/welcome-login/`) is **client-only**. See `docs/frontend-welcome-magic-login.md`.\n- SMS is written to an **outbox** and sent immediately; transient Moolre failures stay `pending` and are retried every **2 hours**. Permanent invalid-phone errors mark `customers.phone_needs_correction` and are not retried.\n- `POST /api/orders/create/` returns `422 PHONE_NEEDS_CORRECTION` until staff updates the customer phone to a valid Ghana number.\n\n**Order SMS notifications (side effects)**\n- No dedicated SMS endpoint; the server enqueues Moolre SMS via the outbox after certain order changes.\n- Env: `MOOLRE_SMS_VAS_KEY`, `MOOLRE_SMS_SENDER_ID` (see `config/moolre.js`).\n- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).\n- Triggers:\n  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`\n  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed` **or** `POST /api/orders/{id}/complete/`\n  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated\n  - **picked up** — when `picked_up` flips to `true`\n- SMS failures do **not** fail payment or order API responses (except order create when phone needs correction).\n- Full frontend-to-SMS flow: see `docs/payment-and-sms-flow.md`.\n\n**Roles**: `superadmin`, `admin`, `employee`, `client`."
   },
   "servers": [
     {
@@ -38,6 +38,9 @@
     },
     {
       "name": "Dashboard"
+    },
+    {
+      "name": "Notifications"
     },
     {
       "name": "Reports"
@@ -1873,6 +1876,83 @@
           }
         },
         "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin)."
+      }
+    },
+    "/api/accounts/staff/user/{userId}/orders/": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "List a client’s orders (admin or superadmin)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin.\n\nPaginated orders for the client profile screen. `userId` is the user id (not customer id). 404 if the user is not a client.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userId"
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated orders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "count": 1,
+                    "page": 1,
+                    "page_size": 20,
+                    "total_pages": 1,
+                    "results": []
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/accounts/superadmin/create/": {
@@ -5050,6 +5130,205 @@
         }
       }
     },
+    "/api/orders/{id}/complete/": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Mark order completed (staff)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: staff (admin, employee, or superadmin).\n\nOne-click complete for admin, employee, or superadmin. Empty body. Sets `order_status` to `completed`, `completed_at` if unset, writes status history, and sends the completed SMS when the status actually changes. Idempotent if already completed. Returns 400 if the order is cancelled.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderMutationResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Order completed successfully",
+                  "data": {
+                    "id": 1,
+                    "order_number": "ORD-ABC12345",
+                    "customer_id": 1,
+                    "customer": 1,
+                    "customer_username": "client1",
+                    "customer_name": "Jane Doe",
+                    "assigned_to": 2,
+                    "assigned_to_username": "employee1",
+                    "order_status": "pending",
+                    "payment_status": "pending",
+                    "total_amount": "89.50",
+                    "amount_paid": "0.00",
+                    "balance": "89.50",
+                    "discount_amount": "5.00",
+                    "delivery_notes": null,
+                    "special_instructions": null,
+                    "pickup_date": null,
+                    "delivery_date": "2026-07-22",
+                    "delivery_time": "14:30:00",
+                    "estimated_completion_date": "2026-07-21",
+                    "completed_at": null,
+                    "picked_up": false,
+                    "picked_up_at": null,
+                    "created_by": 2,
+                    "created_by_username": "employee1",
+                    "created_at": "2026-07-20T09:00:00.000Z",
+                    "updated_at": "2026-07-20T09:00:00.000Z",
+                    "updated_by": null,
+                    "service_ids": [
+                      1,
+                      3
+                    ],
+                    "services": [
+                      {
+                        "id": 1,
+                        "name": "Wash, Dry & Fold",
+                        "description": "Wash dry and fold",
+                        "category": "wash",
+                        "status": "active"
+                      },
+                      {
+                        "id": 3,
+                        "name": "Ironing Only",
+                        "description": "Press only",
+                        "category": "iron",
+                        "status": "active"
+                      }
+                    ],
+                    "order_items": [
+                      {
+                        "id": 1,
+                        "item_name": "SHIRTS",
+                        "dirty_quantity": 5,
+                        "clean_quantity": 0,
+                        "unit_price": "12.50",
+                        "subtotal": "62.50",
+                        "notes": "",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
+                      },
+                      {
+                        "id": 2,
+                        "item_name": "BOTTOMS",
+                        "dirty_quantity": 0,
+                        "clean_quantity": 4,
+                        "unit_price": "8.00",
+                        "subtotal": "32.00",
+                        "notes": "press only",
+                        "created_at": "2026-07-20T09:00:00.000Z",
+                        "updated_at": "2026-07-20T09:00:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot complete a cancelled order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_ERROR": {
+                    "value": {
+                      "error_code": "VALIDATION_ERROR",
+                      "message": "Cannot complete a cancelled order",
+                      "status_code": 400
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NO_TOKEN": {
+                    "value": {
+                      "error_code": "NO_TOKEN",
+                      "message": "Authentication credentials not provided",
+                      "status_code": 401
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "error_code": "INVALID_TOKEN",
+                      "message": "Invalid or expired token",
+                      "status_code": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Staff only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PERMISSION_DENIED": {
+                    "value": {
+                      "error_code": "PERMISSION_DENIED",
+                      "message": "You do not have permission to perform this action",
+                      "status_code": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_FOUND": {
+                    "value": {
+                      "error_code": "NOT_FOUND",
+                      "message": "User not found",
+                      "status_code": 404
+                    }
+                  },
+                  "ORDER_NOT_FOUND": {
+                    "value": {
+                      "error_code": "ORDER_NOT_FOUND",
+                      "message": "Order not found",
+                      "status_code": 404
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/payments/initialize/": {
       "post": {
         "tags": [
@@ -6049,6 +6328,135 @@
           }
         },
         "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin."
+      }
+    },
+    "/api/notifications/pickups/preview/": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Pickup notification preview (admin or superadmin)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin.\n\nBell dropdown: at most 5 pickup alerts (missed first, then due today). `count` is the total (today + missed). Computed from orders with `delivery_date`; no persist.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickupNotificationPreviewResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "count": 12,
+                    "results": [
+                      {
+                        "kind": "pickup_missed",
+                        "order_id": 12,
+                        "order_number": "ORD-ABC12345",
+                        "customer_name": "John Doe",
+                        "customer_username": "john",
+                        "phone_number": "0240000001",
+                        "delivery_date": "2026-08-18",
+                        "delivery_time": "09:00:00",
+                        "order_status": "ready"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/pickups/": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List pickup notifications (admin or superadmin)",
+        "description": "**Required auth:** Access JWT — `Authorization: Bearer <access>` (from login response field `access`). Paste in Swagger **Authorize**. Role: admin or superadmin.\n\nView-all: paginated pickup alerts for today plus missed prior days. Same sort as preview.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated pickup notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickupNotificationListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "data": {
+                    "count": 12,
+                    "page": 1,
+                    "page_size": 20,
+                    "total_pages": 1,
+                    "results": []
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/reports/transactions/": {
@@ -7787,6 +8195,100 @@
           },
           "data": {
             "$ref": "#/components/schemas/PaginatedOrders"
+          }
+        }
+      },
+      "PickupNotification": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pickup_today",
+              "pickup_missed"
+            ]
+          },
+          "order_id": {
+            "type": "integer"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "customer_name": {
+            "type": "string",
+            "nullable": true
+          },
+          "customer_username": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone_number": {
+            "type": "string",
+            "nullable": true
+          },
+          "delivery_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "delivery_time": {
+            "type": "string",
+            "nullable": true
+          },
+          "order_status": {
+            "type": "string"
+          }
+        }
+      },
+      "PickupNotificationPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PickupNotification"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PickupNotificationListResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PickupNotification"
+                }
+              }
+            }
           }
         }
       },

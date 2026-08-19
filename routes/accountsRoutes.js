@@ -41,6 +41,7 @@ router.post('/employee/create/', authenticate, isAdminOrSuperadmin, asyncHandler
 router.patch('/employee/update/', authenticate, isEmployee, asyncHandler(accountsController.updateEmployeeSelf));
 
 router.patch('/staff/client/:userId/update/', authenticate, isStaff, asyncHandler(accountsController.updateClientByStaff));
+router.get('/staff/user/:userId/orders/', authenticate, isAdminOrSuperadmin, asyncHandler(accountsController.getStaffUserOrders));
 router.get('/staff/user/:userId/', authenticate, isStaff, asyncHandler(accountsController.getStaffUserById));
 
 router.post('/superadmin/create/', requireSuperadminCreationAccess, asyncHandler(accountsController.createSuperadmin));

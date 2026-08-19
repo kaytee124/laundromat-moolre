@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
 const userService = require('../services/userService');
+const orderService = require('../services/orderService');
 const { buildDefaultPassword } = require('../utils/passwords');
 const { formatUser } = require('../utils/serializers');
 const { verifyCsrf } = require('../middleware/csrf');
@@ -144,6 +145,11 @@ async function getStaffUserById(req, res) {
   res.json({ message: 'User profile retrieved successfully', user });
 }
 
+async function getStaffUserOrders(req, res) {
+  const data = await orderService.listOrdersForClientUserId(req.params.userId, req.query);
+  res.json({ status: 'success', data });
+}
+
 async function createSuperadmin(req, res) {
   const user = await userService.createSuperadmin(req.body, req.user);
   res.status(201).json({
@@ -218,6 +224,7 @@ module.exports = {
   updateEmployeeSelf,
   updateClientByStaff,
   getStaffUserById,
+  getStaffUserOrders,
   createSuperadmin,
   superadminUpdateAdmin,
   superadminUpdateEmployee,

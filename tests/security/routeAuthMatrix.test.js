@@ -24,6 +24,7 @@ const PROTECTED_ROUTES = [
   { method: 'patch', path: '/api/accounts/employee/update/', body: {} },
   { method: 'patch', path: '/api/accounts/staff/client/1/update/', body: {} },
   { method: 'get', path: '/api/accounts/staff/user/1/' },
+  { method: 'get', path: '/api/accounts/staff/user/1/orders/' },
   { method: 'post', path: '/api/accounts/superadmin/create/', body: {} },
   { method: 'patch', path: '/api/accounts/superadmin/update/', body: {} },
   { method: 'patch', path: '/api/accounts/superadmin/admin/1/update/', body: {} },
@@ -42,10 +43,13 @@ const PROTECTED_ROUTES = [
   { method: 'post', path: '/api/orders/create/', body: {} },
   { method: 'get', path: '/api/orders/1/' },
   { method: 'put', path: '/api/orders/1/update/', body: {} },
+  { method: 'post', path: '/api/orders/1/complete/', body: {} },
   { method: 'post', path: '/api/payments/initialize/', body: {} },
   { method: 'post', path: '/api/payments/cash/', body: {} },
   { method: 'get', path: '/api/dashboard/metrics/' },
   { method: 'get', path: '/api/dashboard/revenue-report/' },
+  { method: 'get', path: '/api/notifications/pickups/preview/' },
+  { method: 'get', path: '/api/notifications/pickups/' },
 ];
 
 describe('Security: Route auth matrix', () => {

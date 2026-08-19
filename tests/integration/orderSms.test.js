@@ -264,6 +264,29 @@ describe('Order SMS notifications', () => {
       expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/ready for pickup/i);
     });
 
+    it('sends completed SMS on POST complete, not again if already completed', async () => {
+      sendSmsSpy.mockClear();
+      const service = await createService(ctx.admin);
+      const smsOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'ready',
+      });
+
+      const first = await request(app)
+        .post(`/api/orders/${smsOrder.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(first.status).toBe(200);
+      await waitForSpyCalls(sendSmsSpy, 1);
+      expect(sendSmsSpy.mock.calls[0][0].message).toMatch(/ready for pickup/i);
+
+      sendSmsSpy.mockClear();
+      const second = await request(app)
+        .post(`/api/orders/${smsOrder.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(second.status).toBe(200);
+      await waitForSpyCalls(sendSmsSpy, 0);
+      expect(sendSmsSpy).not.toHaveBeenCalled();
+    });
+
     it('still succeeds when SMS send fails', async () => {
       sendSmsSpy.mockClear();
       sendSmsSpy.mockRejectedValue(new Error('Moolre SMS down'));

@@ -333,6 +333,10 @@ const AUTH_META = {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
   },
+  'GET /api/accounts/staff/user/{userId}/orders/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
   'POST /api/accounts/superadmin/create/': {
     security: PUBLIC,
     requiredAuth:
@@ -408,6 +412,10 @@ const AUTH_META = {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
   },
+  'POST /api/orders/{id}/complete/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: staff (admin, employee, or superadmin).`,
+  },
   'POST /api/payments/initialize/': {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: client.`,
@@ -431,6 +439,14 @@ const AUTH_META = {
     requiredAuth: `${AUTH_BEARER} Role: any authenticated user (metrics vary by role).`,
   },
   'GET /api/dashboard/revenue-report/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'GET /api/notifications/pickups/preview/': {
+    security: bearer,
+    requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
+  },
+  'GET /api/notifications/pickups/': {
     security: bearer,
     requiredAuth: `${AUTH_BEARER} Role: admin or superadmin.`,
   },
@@ -521,7 +537,7 @@ const spec = {
       '- Recipient: `Customer.phone_number` from the database (formatted to international `233…`).',
       '- Triggers:',
       '  - **`in_progress`** — staff `PUT /api/orders/{id}/update/` **or** cumulative paid amount ≥ **30%** of `total_amount` while order is still `pending`',
-      '  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed`',
+      '  - **`completed`** — staff `PUT /api/orders/{id}/update/` with `order_status: completed` **or** `POST /api/orders/{id}/complete/`',
       '  - **estimated completion date change** — earlier vs later copy when `estimated_completion_date` is updated',
       '  - **picked up** — when `picked_up` flips to `true`',
       '- SMS failures do **not** fail payment or order API responses (except order create when phone needs correction).',
@@ -540,6 +556,7 @@ const spec = {
     { name: 'Payments' },
     { name: 'Ussd' },
     { name: 'Dashboard' },
+    { name: 'Notifications' },
   ],
   paths: {
     '/health': {
@@ -854,6 +871,29 @@ const spec = {
           200: {
             description: 'Client updated',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/ProfileUpdateResponse' } } },
+          },
+          401: stdErrors[401],
+          403: stdErrors[403],
+          404: stdErrors[404],
+        },
+      },
+    },
+    '/api/accounts/staff/user/{userId}/orders/': {
+      get: {
+        tags: ['Accounts'],
+        summary: 'List a client’s orders (admin or superadmin)',
+        description:
+          'Paginated orders for the client profile screen. `userId` is the user id (not customer id). 404 if the user is not a client.',
+        security: bearer,
+        parameters: [
+          { $ref: '#/components/parameters/userId' },
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/pageSize' },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated orders',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderListResponse' } } },
           },
           401: stdErrors[401],
           403: stdErrors[403],
@@ -1285,6 +1325,28 @@ const spec = {
         },
       },
     },
+    '/api/orders/{id}/complete/': {
+      post: {
+        tags: ['Orders'],
+        summary: 'Mark order completed (staff)',
+        description:
+          'One-click complete for admin, employee, or superadmin. Empty body. Sets `order_status` to `completed`, ' +
+          '`completed_at` if unset, writes status history, and sends the completed SMS when the status actually changes. ' +
+          'Idempotent if already completed. Returns 400 if the order is cancelled.',
+        security: bearer,
+        parameters: [{ $ref: '#/components/parameters/id' }],
+        responses: {
+          200: {
+            description: 'Order completed',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderMutationResponse' } } },
+          },
+          400: stdErrors[400],
+          401: stdErrors[401],
+          403: stdErrors[403],
+          404: stdErrors[404],
+        },
+      },
+    },
     '/api/payments/initialize/': {
       post: {
         tags: ['Payments'],
@@ -1462,6 +1524,44 @@ const spec = {
           401: stdErrors[401],
           403: stdErrors[403],
           422: stdErrors[422],
+        },
+      },
+    },
+    '/api/notifications/pickups/preview/': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'Pickup notification preview (admin or superadmin)',
+        description:
+          'Bell dropdown: at most 5 pickup alerts (missed first, then due today). `count` is the total (today + missed). Computed from orders with `delivery_date`; no persist.',
+        security: bearer,
+        responses: {
+          200: {
+            description: 'Preview',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PickupNotificationPreviewResponse' } } },
+          },
+          401: stdErrors[401],
+          403: stdErrors[403],
+        },
+      },
+    },
+    '/api/notifications/pickups/': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'List pickup notifications (admin or superadmin)',
+        description:
+          'View-all: paginated pickup alerts for today plus missed prior days. Same sort as preview.',
+        security: bearer,
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/pageSize' },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated pickup notifications',
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PickupNotificationListResponse' } } },
+          },
+          401: stdErrors[401],
+          403: stdErrors[403],
         },
       },
     },
@@ -1995,6 +2095,49 @@ const spec = {
         properties: {
           status: { type: 'string' },
           data: { $ref: '#/components/schemas/PaginatedOrders' },
+        },
+      },
+      PickupNotification: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['pickup_today', 'pickup_missed'] },
+          order_id: { type: 'integer' },
+          order_number: { type: 'string' },
+          customer_name: { type: 'string', nullable: true },
+          customer_username: { type: 'string', nullable: true },
+          phone_number: { type: 'string', nullable: true },
+          delivery_date: { type: 'string', format: 'date' },
+          delivery_time: { type: 'string', nullable: true },
+          order_status: { type: 'string' },
+        },
+      },
+      PickupNotificationPreviewResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string' },
+          data: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer' },
+              results: { type: 'array', items: { $ref: '#/components/schemas/PickupNotification' } },
+            },
+          },
+        },
+      },
+      PickupNotificationListResponse: {
+        type: 'object',
+        properties: {
+          status: { type: 'string' },
+          data: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer' },
+              page: { type: 'integer' },
+              page_size: { type: 'integer' },
+              total_pages: { type: 'integer' },
+              results: { type: 'array', items: { $ref: '#/components/schemas/PickupNotification' } },
+            },
+          },
         },
       },
       OrderDetailResponse: {
@@ -2594,6 +2737,7 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/accounts/staff/client/{userId}/update/', 'patch')]: {
       200: { message: 'Client updated successfully', user: EXAMPLE_USER },
     },
+    [opKey('/api/accounts/staff/user/{userId}/orders/', 'get')]: { 200: EXAMPLE_PAGINATED_ORDERS },
     [opKey('/api/accounts/staff/user/{userId}/', 'get')]: {
       200: {
         message: 'User profile retrieved successfully',
@@ -2644,6 +2788,9 @@ function applyDocumentation(openApiSpec) {
     [opKey('/api/orders/{id}/update/', 'put')]: {
       200: { status: 'success', message: 'Order updated successfully', data: EXAMPLE_ORDER },
     },
+    [opKey('/api/orders/{id}/complete/', 'post')]: {
+      200: { status: 'success', message: 'Order completed successfully', data: EXAMPLE_ORDER },
+    },
     [opKey('/api/payments/initialize/', 'post')]: { 200: EXAMPLE_PAYMENT_INIT },
     [opKey('/api/payments/moolre/webhook/', 'post')]: { 200: { status: 'ok' } },
     [opKey('/api/payments/{externalref}/', 'get')]: { 200: { status: 'PENDING' } },
@@ -2660,6 +2807,51 @@ function applyDocumentation(openApiSpec) {
       },
     },
     [opKey('/api/dashboard/revenue-report/', 'get')]: { 200: EXAMPLE_REVENUE },
+    [opKey('/api/notifications/pickups/preview/', 'get')]: {
+      200: {
+        status: 'success',
+        data: {
+          count: 12,
+          results: [
+            {
+              kind: 'pickup_missed',
+              order_id: 12,
+              order_number: 'ORD-ABC12345',
+              customer_name: 'John Doe',
+              customer_username: 'john',
+              phone_number: '0240000001',
+              delivery_date: '2026-08-18',
+              delivery_time: '09:00:00',
+              order_status: 'ready',
+            },
+          ],
+        },
+      },
+    },
+    [opKey('/api/notifications/pickups/', 'get')]: {
+      200: {
+        status: 'success',
+        data: {
+          count: 12,
+          page: 1,
+          page_size: 20,
+          total_pages: 1,
+          results: [
+            {
+              kind: 'pickup_today',
+              order_id: 13,
+              order_number: 'ORD-DEF67890',
+              customer_name: 'Jane Doe',
+              customer_username: 'jane',
+              phone_number: '0240000002',
+              delivery_date: '2026-08-19',
+              delivery_time: '14:00:00',
+              order_status: 'ready',
+            },
+          ],
+        },
+      },
+    },
   };
 
   const errorOverrides = {
@@ -2702,6 +2894,10 @@ function applyDocumentation(openApiSpec) {
     },
     [opKey('/api/orders/{id}/update/', 'put')]: {
       403: errorResponse(403, 'Staff only', 'INSUFFICIENT_PERMISSIONS'),
+    },
+    [opKey('/api/orders/{id}/complete/', 'post')]: {
+      400: errorResponse(400, 'Cannot complete a cancelled order', 'VALIDATION_ERROR'),
+      403: errorResponse(403, 'Staff only', 'PERMISSION_DENIED'),
     },
   };
 

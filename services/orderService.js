@@ -318,6 +318,20 @@ async function listOrders(user, query = {}) {
   });
 }
 
+async function listOrdersForClientUserId(userId, query = {}) {
+  const user = await User.findByPk(userId);
+  if (!user || user.role !== 'client') {
+    throw new AppError('NOT_FOUND', 'Client not found', 404);
+  }
+
+  const customer = await Customer.findOne({ where: { user_id: user.id } });
+  if (!customer) {
+    throw new AppError('NOT_FOUND', 'Customer profile not found', 404);
+  }
+
+  return listOrders({ role: 'admin' }, { ...query, customer_id: customer.id });
+}
+
 async function getOrderById(orderId, user) {
   const order = await loadOrderDetail(orderId);
 
@@ -584,6 +598,15 @@ async function updateOrder(orderId, data, user) {
   return formatOrder(updated);
 }
 
+async function completeOrder(orderId, user) {
+  const order = await Order.findByPk(orderId);
+  if (!order) throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
+  if (order.order_status === 'cancelled') {
+    throw new AppError('VALIDATION_ERROR', 'Cannot complete a cancelled order', 400);
+  }
+  return updateOrder(orderId, { order_status: 'completed' }, user);
+}
+
 async function syncOrderPaymentStatus(orderId, transaction) {
   const order = await Order.findByPk(orderId, { transaction });
   const previousOrderStatus = order.order_status;
@@ -634,9 +657,11 @@ async function syncOrderPaymentStatus(orderId, transaction) {
 
 module.exports = {
   listOrders,
+  listOrdersForClientUserId,
   getOrderById,
   createOrder,
   updateOrder,
+  completeOrder,
   syncOrderPaymentStatus,
   recalculateOrderTotal,
   updateCustomerStats,

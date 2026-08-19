@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
 const { createService, createOrder } = require('../helpers/fixtures');
-const { Order } = require('../../models');
+const { Order, OrderStatusHistory } = require('../../models');
 
 describe('Orders API', () => {
   let tokens;
@@ -212,6 +212,84 @@ describe('Orders API', () => {
         .set(tokens.client.headers)
         .send({ order_status: 'completed' });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('POST /api/orders/:id/complete/', () => {
+    it('employee, admin, and superadmin can complete', async () => {
+      const employeeOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'ready',
+      });
+      const empRes = await request(app)
+        .post(`/api/orders/${employeeOrder.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(empRes.status).toBe(200);
+      expect(empRes.body.data.order_status).toBe('completed');
+      expect(empRes.body.data.completed_at).toBeTruthy();
+
+      const adminOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'in_progress',
+      });
+      const adminRes = await request(app)
+        .post(`/api/orders/${adminOrder.id}/complete/`)
+        .set(tokens.admin.headers);
+      expect(adminRes.status).toBe(200);
+      expect(adminRes.body.data.order_status).toBe('completed');
+
+      const saOrder = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'ready',
+      });
+      const saRes = await request(app)
+        .post(`/api/orders/${saOrder.id}/complete/`)
+        .set(tokens.superadmin.headers);
+      expect(saRes.status).toBe(200);
+      expect(saRes.body.data.order_status).toBe('completed');
+    });
+
+    it('is idempotent when already completed', async () => {
+      const target = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'ready',
+      });
+      const first = await request(app)
+        .post(`/api/orders/${target.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(first.status).toBe(200);
+      const historyAfterFirst = await OrderStatusHistory.count({ where: { order_id: target.id } });
+
+      const second = await request(app)
+        .post(`/api/orders/${target.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(second.status).toBe(200);
+      expect(second.body.data.order_status).toBe('completed');
+      const historyAfterSecond = await OrderStatusHistory.count({ where: { order_id: target.id } });
+      expect(historyAfterSecond).toBe(historyAfterFirst);
+    });
+
+    it('rejects cancelled orders', async () => {
+      const target = await createOrder(ctx.employee, ctx.customer, service, {
+        order_status: 'cancelled',
+      });
+      const res = await request(app)
+        .post(`/api/orders/${target.id}/complete/`)
+        .set(tokens.employee.headers);
+      expect(res.status).toBe(400);
+      expect(res.body.error_code).toBe('VALIDATION_ERROR');
+      const row = await Order.findByPk(target.id);
+      expect(row.order_status).toBe('cancelled');
+    });
+
+    it('denies client', async () => {
+      const res = await request(app)
+        .post(`/api/orders/${order.id}/complete/`)
+        .set(tokens.client.headers);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 404 for missing order', async () => {
+      const res = await request(app)
+        .post('/api/orders/999999/complete/')
+        .set(tokens.employee.headers);
+      expect(res.status).toBe(404);
     });
   });
 });
