@@ -1,6 +1,18 @@
+const { Op } = require('sequelize');
 const { SmsOutbox, Customer } = require('../models');
 const moolreService = require('./moolreService');
 const { formatSmsRecipient } = require('../utils/phone');
+
+/** Due reminders + in-progress SMS are disabled; never retry these outbox rows. */
+const OBSOLETE_SMS_PURPOSES = [
+  'order_due_1h',
+  'order_due_24h',
+  'order_due_1h_staff',
+  'order_due_24h_staff',
+  'order_in_progress',
+];
+
+const OBSOLETE_PURPOSE_ERROR = 'obsolete_purpose_disabled';
 
 const PERMANENT_PHONE_PATTERNS = [
   /invalid\s*phone/i,
@@ -108,9 +120,44 @@ async function enqueueSms({ recipient, message, ref, purpose, relatedType = null
   return attemptSend(row);
 }
 
+/**
+ * Mark pending rows for disabled purposes as failed_permanent so retries never send them.
+ * @returns {Promise<number>} rows cancelled
+ */
+async function cancelObsoletePendingSms() {
+  const [cancelled] = await SmsOutbox.update(
+    {
+      status: 'failed_permanent',
+      last_error: OBSOLETE_PURPOSE_ERROR,
+      last_attempt_at: new Date(),
+    },
+    {
+      where: {
+        status: 'pending',
+        purpose: { [Op.in]: OBSOLETE_SMS_PURPOSES },
+      },
+    }
+  );
+  if (cancelled > 0) {
+    console.log(
+      JSON.stringify({
+        event: 'sms_outbox_obsolete_cancelled',
+        cancelled,
+        purposes: OBSOLETE_SMS_PURPOSES,
+      })
+    );
+  }
+  return cancelled;
+}
+
 async function processPendingSms({ limit = 100 } = {}) {
+  const cancelledObsolete = await cancelObsoletePendingSms();
+
   const rows = await SmsOutbox.findAll({
-    where: { status: 'pending' },
+    where: {
+      status: 'pending',
+      purpose: { [Op.notIn]: OBSOLETE_SMS_PURPOSES },
+    },
     order: [['id', 'ASC']],
     limit,
   });
@@ -126,12 +173,21 @@ async function processPendingSms({ limit = 100 } = {}) {
     else stillPending += 1;
   }
 
-  return { processed: rows.length, sent, permanent, stillPending };
+  return {
+    processed: rows.length,
+    sent,
+    permanent,
+    stillPending,
+    cancelledObsolete,
+  };
 }
 
 module.exports = {
   isPermanentPhoneError,
+  OBSOLETE_SMS_PURPOSES,
+  OBSOLETE_PURPOSE_ERROR,
   enqueueSms,
   attemptSend,
+  cancelObsoletePendingSms,
   processPendingSms,
 };

@@ -8,13 +8,17 @@ require('dotenv').config();
 
 const { Op } = require('sequelize');
 const { SmsOutbox, sequelize } = require('../models');
-const { processPendingSms } = require('../services/smsOutboxService');
+const {
+  processPendingSms,
+  OBSOLETE_SMS_PURPOSES,
+} = require('../services/smsOutboxService');
 
 async function main() {
   const pending = await SmsOutbox.findAll({
     where: {
       status: 'pending',
       last_error: { [Op.like]: '%not unique%' },
+      purpose: { [Op.notIn]: OBSOLETE_SMS_PURPOSES },
     },
     order: [['id', 'ASC']],
   });

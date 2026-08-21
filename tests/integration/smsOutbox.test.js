@@ -73,4 +73,43 @@ describe('SMS outbox', () => {
     expect(isPermanentPhoneError({ message: 'Phone number does not exist' })).toBe(true);
     expect(isPermanentPhoneError({ message: 'timeout' })).toBe(false);
   });
+
+  it('cancels obsolete due/in_progress pending rows and does not send them', async () => {
+    sendSmsSpy = jest.spyOn(moolreService, 'sendSms').mockResolvedValue({ status: 1, message: 'ok' });
+
+    const obsolete = await SmsOutbox.create({
+      recipient: '233200000001',
+      message: 'due soon',
+      purpose: 'order_due_1h_staff',
+      ref: 'obsolete-due-1',
+      status: 'pending',
+      attempts: 1,
+      last_error: 'ref at (0) is not unique',
+      created_at: new Date(),
+    });
+    const keep = await SmsOutbox.create({
+      recipient: '233200000002',
+      message: 'payment ok',
+      purpose: 'payment_received_staff',
+      ref: 'keep-pay-1',
+      status: 'pending',
+      attempts: 1,
+      last_error: 'timeout',
+      created_at: new Date(),
+    });
+
+    const processed = await processPendingSms();
+    expect(processed.cancelledObsolete).toBeGreaterThanOrEqual(1);
+    expect(processed.sent).toBe(1);
+
+    const obsoleteRow = await SmsOutbox.findByPk(obsolete.id);
+    expect(obsoleteRow.status).toBe('failed_permanent');
+    expect(obsoleteRow.last_error).toBe('obsolete_purpose_disabled');
+
+    const keepRow = await SmsOutbox.findByPk(keep.id);
+    expect(keepRow.status).toBe('sent');
+
+    expect(sendSmsSpy).toHaveBeenCalledTimes(1);
+    expect(sendSmsSpy.mock.calls[0][0].message).toBe('payment ok');
+  });
 });
