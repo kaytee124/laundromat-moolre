@@ -3,7 +3,6 @@ const app = require('../../app');
 const { getTokensForRoles } = require('../helpers/auth');
 const { createService, createOrder } = require('../helpers/fixtures');
 const { Payment } = require('../../models');
-const { syncOrderPaymentStatus } = require('../../services/orderService');
 
 describe('Superadmin reports API', () => {
   let tokens;
@@ -72,60 +71,6 @@ describe('Superadmin reports API', () => {
       expect(row.payment_method).toBe('cash');
       expect(row.order_number).toBe(order.order_number);
       expect(row.customer_id).toBe(ctx.customer.id);
-    });
-
-    it('status=pending returns payments on orders that are not fully paid', async () => {
-      const service = await createService(ctx.admin, { name: `Report Partial ${Date.now()}` });
-      const partialOrder = await createOrder(ctx.employee, ctx.customer, service, {
-        quantity: 1,
-        unit_price: 100,
-      });
-      const paidOrder = await createOrder(ctx.employee, ctx.customer, service, {
-        quantity: 1,
-        unit_price: 80,
-      });
-      const now = new Date();
-      await Payment.create({
-        order_id: partialOrder.id,
-        externalref: `PAY-PART-${Date.now()}`,
-        amount: 40,
-        status: 'paid',
-        payment_method: 'cash',
-        provider: null,
-        currency: 'GHS',
-        value: 40,
-        paid_at: now,
-        created_by: ctx.employee.id,
-        created_at: now,
-        updated_at: now,
-      });
-      await Payment.create({
-        order_id: paidOrder.id,
-        externalref: `PAY-FULL-${Date.now()}`,
-        amount: 80,
-        status: 'paid',
-        payment_method: 'cash',
-        provider: null,
-        currency: 'GHS',
-        value: 80,
-        paid_at: now,
-        created_by: ctx.employee.id,
-        created_at: now,
-        updated_at: now,
-      });
-      await syncOrderPaymentStatus(partialOrder.id);
-      await syncOrderPaymentStatus(paidOrder.id);
-
-      const res = await request(app)
-        .get('/api/reports/transactions/?status=pending&page_size=200')
-        .set(tokens.superadmin.headers);
-      expect(res.status).toBe(200);
-      const partialRow = res.body.data.results.find((r) => r.order_id === partialOrder.id);
-      const paidRow = res.body.data.results.find((r) => r.order_id === paidOrder.id);
-      expect(partialRow).toBeTruthy();
-      expect(partialRow.status).toBe('paid');
-      expect(partialRow.order_payment_status).toBe('partially_paid');
-      expect(paidRow).toBeUndefined();
     });
 
     it('superadmin can download CSV', async () => {

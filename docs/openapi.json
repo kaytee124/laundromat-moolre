@@ -6601,7 +6601,6 @@
           {
             "name": "status",
             "in": "query",
-            "description": "paid and failed match the payment line. pending matches payments whose order payment_status is pending or partially_paid.",
             "schema": {
               "type": "string",
               "enum": [
@@ -9555,15 +9554,6 @@
           },
           "order_number": {
             "type": "string"
-          },
-          "order_payment_status": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "pending",
-              "partially_paid",
-              "paid"
-            ]
           },
           "customer_id": {
             "type": "integer"

@@ -173,7 +173,6 @@ function formatTransaction(payment) {
     created_by_username: creator?.username || null,
     order_id: order?.id || payment.order_id,
     order_number: order?.order_number || null,
-    order_payment_status: order?.payment_status || null,
     customer_id: order?.customer_id || null,
     customer_username: customerUser?.username || null,
     customer_name: customerName,
@@ -186,7 +185,6 @@ async function listTransactions(query = {}) {
     ? { page: 1, pageSize: 5000, offset: 0, limit: 5000 }
     : parsePagination(query);
   const whereClause = {};
-  let orderWhere = null;
 
   if (query.payment_method) {
     const method = String(query.payment_method).toLowerCase();
@@ -201,11 +199,7 @@ async function listTransactions(query = {}) {
     if (!['paid', 'pending', 'failed'].includes(status)) {
       throw new AppError('VALIDATION_ERROR', 'status must be paid, pending, or failed', 400);
     }
-    if (status === 'pending') {
-      orderWhere = { payment_status: { [Op.in]: ['pending', 'partially_paid'] } };
-    } else {
-      whereClause.status = status;
-    }
+    whereClause.status = status;
   }
 
   let dateFilter = null;
@@ -235,9 +229,7 @@ async function listTransactions(query = {}) {
       {
         model: Order,
         as: 'order',
-        attributes: ['id', 'order_number', 'customer_id', 'payment_status'],
-        required: Boolean(orderWhere),
-        ...(orderWhere ? { where: orderWhere } : {}),
+        attributes: ['id', 'order_number', 'customer_id'],
         include: [
           {
             model: Customer,
@@ -289,7 +281,6 @@ function transactionsToCsv(results) {
     'created_by_username',
     'order_id',
     'order_number',
-    'order_payment_status',
     'customer_id',
     'customer_username',
     'customer_name',

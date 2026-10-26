@@ -31,7 +31,7 @@ Paginated list of Payment rows (all methods).
 | `start_date`, `end_date` | `YYYY-MM-DD` inclusive (filters on `COALESCE(paid_at, created_at)`) |
 | `period` + `date` / `year` / `month` | Same period helpers as summary (optional instead of start/end) |
 | `payment_method` | `cash` \| `moolre` \| `ussd` |
-| `status` | `paid` and `failed` match the payment line. `pending` matches payments whose order is not fully paid (`payment_status` `pending` or `partially_paid`). Orders with no payment row are not in this list. |
+| `status` | `paid` \| `pending` \| `failed` |
 | `format` | `json` (default) or `csv` |
 
 ### JSON response
@@ -50,7 +50,6 @@ Paginated list of Payment rows (all methods).
         "externalref": "PAY-22-ABC",
         "amount": "90.00",
         "status": "paid",
-        "order_payment_status": "partially_paid",
         "payment_method": "cash",
         "provider": null,
         "payer_phone": null,
